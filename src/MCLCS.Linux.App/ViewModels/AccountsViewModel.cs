@@ -5,12 +5,16 @@ using MCLCS.Core.Localization;
 using MCLCS.Core.Mvvm;
 using MCLCS.Core.Profiles;
 using MCLCS.Core.Utils;
+using System.Net.Http;
+using MCLCS.Core.Auth;
+using Avalonia.Threading;
 
 namespace MCLCS.Linux.App.ViewModels;
 
 /// <summary>
-/// 设置 → 账户 视图模型：列出 / 新增离线账号 / 删除（Core AccountStore 持久化到 mclcs_accounts.json）。
-/// 微软 / 第三方（authlib）登录属更大的认证流程，本页先提供离线账号管理；后续接入完整登录。
+/// 设置 → 账户 视图模型：列出 / 新增离线账号 / 删除（Core AccountStore 持久化到 mclcs_accounts.json），
+/// 并提供微软设备代码登录（对应 WPF 的 MicrosoftAuthenticator 流程，登录结果写入同一 AccountStore）。
+/// authlib 第三方登录暂未接入。
 /// </summary>
 public class AccountsViewModel : ObservableObject
 {
@@ -47,11 +51,29 @@ public class AccountsViewModel : ObservableObject
 
     public ICommand AddOfflineCommand { get; }
     public ICommand RemoveCommand { get; }
+    public ICommand LoginMicrosoftCommand { get; }
+
+    private static readonly HttpClient Http = new();
+
+    private bool _isMsBusy;
+    public bool IsMsBusy
+    {
+        get => _isMsBusy;
+        set => SetField(ref _isMsBusy, value);
+    }
+
+    private string _msMessage = "";
+    public string MsMessage
+    {
+        get => _msMessage;
+        set => SetField(ref _msMessage, value);
+    }
 
     public AccountsViewModel()
     {
         AddOfflineCommand = new RelayCommand(_ => AddOffline());
         RemoveCommand = new RelayCommand(p => RemoveAccount(p as AccountEntry));
+        LoginMicrosoftCommand = new AsyncRelayCommand(_ => LoginMicrosoftAsync());
         Load();
     }
 
@@ -87,5 +109,48 @@ public class AccountsViewModel : ObservableObject
         AccountStore.Remove(_gameRoot, acc.Id);
         Load();
         Status = $"已删除账号：{acc.DisplayName}";
+    }
+
+    /// <summary>微软设备代码登录：弹出浏览器 + 设备码，完成后把账号写入 AccountStore。</summary>
+    private async Task LoginMicrosoftAsync()
+    {
+        if (_isMsBusy) return;
+        IsMsBusy = true;
+        MsMessage = "正在发起微软登录…（将自动打开浏览器）";
+        try
+        {
+            var auth = new MicrosoftAuthenticator(Http, null,
+                msg => Dispatcher.UIThread.InvokeAsync(() => MsMessage = msg));
+            var session = await auth.AuthenticateAsync(null, CancellationToken.None);
+
+            // 同名 uuid 的微软账号已存在则复用其 Id，避免重复登录产生重复条目。
+            var existing = AccountStore.Load(_gameRoot)
+                .FirstOrDefault(a => a.AuthType == "microsoft" && a.Uuid == session.Uuid);
+
+            var entry = new AccountEntry
+            {
+                DisplayName = session.Username,
+                Username = session.Username,
+                Uuid = session.Uuid,
+                AuthType = "microsoft",
+                AccessToken = session.AccessToken,
+                LastUsed = DateTimeOffset.UtcNow.ToString("o")
+            };
+            if (existing is not null) entry.Id = existing.Id;
+
+            AccountStore.Upsert(_gameRoot, entry);
+            Load();
+            Status = $"已添加微软账号：{session.Username}";
+            MsMessage = "";
+        }
+        catch (Exception ex)
+        {
+            Status = $"微软登录失败：{ex.Message}";
+            MsMessage = $"登录失败：{ex.Message}";
+        }
+        finally
+        {
+            IsMsBusy = false;
+        }
     }
 }

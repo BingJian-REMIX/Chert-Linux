@@ -144,7 +144,9 @@ public static class Sidebar
         new("shader",       "tab.shader",       "shader",   2),
         new("resourcepack", "tab.resourcepack", "tex",      3),
         new("modpack",      "lbl.modpack",      "pack",     4),
-        new("map",          "tab.map",          "map",      5)
+        new("map",          "tab.map",          "map",      5),
+        new("shadertoken",  "tool.shadertoken", "token",    6),
+        new("center",       "tool.dlcenter",    "download", 7)
     };
 
     /// <summary>工具箱页副标签（规格 2.3，种子库已移除并并入存档管理器）。</summary>
@@ -164,6 +166,7 @@ public static class Sidebar
         new("clean",      "tool.clean",      "clean",     9, "tool.group.resource"),
         new("modpackio",  "tool.modpackio",  "modpack",  10, "tool.group.resource"),
         new("music",      "tool.music",      "music",    11, "tool.group.resource"),
+        new("serverpack", "tool.serverpack", "tex",      12, "tool.group.resource"),
 
         // 开发工具
         new("moddev",     "tool.moddev",     "dev",      12, "tool.group.dev"),
@@ -176,23 +179,18 @@ public static class Sidebar
         // 其他
         new("afk",        "tool.afk",        "flowchart",18, "tool.group.other"),
         new("aichat",     "tool.aichat",     "ai",       19, "tool.group.other"),
+        new("addserver",  "tool.addserver",  "server",   21, "tool.group.other"),
+        new("achievement", "tool.achievement", "save",    22, "tool.group.other"),
 
         // 开发工具聚合入口（移除 toolbox/achievement/annual 常驻项）
         new("devtools",    "tool.devtools",    "dev",      20, "tool.group.dev")
     };
 
-    /// <summary>设置页副标签（规格 2.4）。</summary>
-    public static IReadOnlyList<SidebarItem> Settings { get; } = new List<SidebarItem>
-    {
-        new("general",    "settings.general",    "general",    0),
-        new("launch",     "settings.launch",     "launch",     1),
-        new("download",   "settings.download",   "download",   2),
-        new("recommend",  "settings.recommend",  "recommend",  3),
-        new("account",    "settings.account",    "account",    4),
-        new("ai",         "settings.ai",         "ai",         5),
-        new("appearance", "settings.appearance", "appearance", 6),
-        new("about",      "settings.about",      "about",      7, bottom: true)
-    };
+    /// <summary>
+    /// 设置页副标签：置空。设置不再以侧边栏子页呈现，而是收敛为单 SettingsView
+    /// （左侧分类列表 + 右侧内容区，对应 WPF 的单 SettingsView），分类切换在页内完成。
+    /// </summary>
+    public static IReadOnlyList<SidebarItem> Settings { get; } = new List<SidebarItem>();
 
     /// <summary>游戏页无侧边栏（规格 2.1）：默认展示主页（HomeView）全宽内容。</summary>
     public static IReadOnlyList<SidebarItem> Game { get; } = new List<SidebarItem>();

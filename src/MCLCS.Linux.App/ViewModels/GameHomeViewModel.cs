@@ -5,7 +5,11 @@ using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Input;
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Controls.ApplicationLifetimes;
 using MCLCS.Core.Auth;
+using MCLCS.Linux.App.Views;
 using MCLCS.Core.Download;
 using MCLCS.Core.Launcher;
 using MCLCS.Core.Localization;
@@ -338,10 +342,17 @@ public class GameHomeViewModel : ObservableObject
             var gameRoot = profile.GameRoot;
             if (profile.LaunchCompatCheckEnabled)
             {
-                var incompatible = SaveCompatibilityDetector.Scan(gameRoot, id);
-                var bad = incompatible.Count(r => !r.Compatible);
-                if (bad > 0)
-                    Status = $"存档兼容性警告：{bad} 个存档可能与 {id} 不兼容，启动后请留意";
+                var incompatible = SaveCompatibilityDetector.Scan(gameRoot, id)
+                    .Where(r => !r.Compatible).ToList();
+                if (incompatible.Count > 0)
+                {
+                    var proceed = await ShowSaveCompatPromptAsync(gameRoot, id, incompatible);
+                    if (!proceed)
+                    {
+                        Status = "已取消启动（存档兼容性问题未处理）。";
+                        return;
+                    }
+                }
             }
             if (profile.Prewarm.Mode != PrewarmMode.Off)
             {
@@ -363,6 +374,21 @@ public class GameHomeViewModel : ObservableObject
         {
             IsBusy = false;
         }
+    }
+
+    /// <summary>弹出存档兼容性提示（§二.4，移植自 WPF）。返回 true 表示用户选择继续启动（已降级或忽略），false 表示取消。</summary>
+    private async Task<bool> ShowSaveCompatPromptAsync(string gameRoot, string versionId,
+        List<MCLCS.Core.Save.SaveCompatibilityReport> incompatible)
+    {
+        if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime { MainWindow: { } owner })
+        {
+            var vm = new SaveCompatPromptViewModel(gameRoot, versionId, incompatible);
+            var dlg = new SaveCompatPromptView(vm);
+            await dlg.ShowDialog(owner);
+            return vm.Proceed;
+        }
+        // 拿不到窗口则不阻断启动（降级/忽略由用户后续手动处理）
+        return true;
     }
 
     /// <summary>从设置路径解析 JavaInfo；未配置则按游戏版本自动挑选合适 Java（避免高版本 Java 启动低版本 MC 失败）。</summary>

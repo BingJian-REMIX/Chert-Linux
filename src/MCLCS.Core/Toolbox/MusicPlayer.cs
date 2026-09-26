@@ -20,6 +20,9 @@ public class Track
     public string Title { get; set; } = "";
     public string? Artist { get; set; }
 
+    /// <summary>专辑名（从 ID3v1/v2、Vorbis Comment 读取，读不到为 null）。</summary>
+    public string? Album { get; set; }
+
     /// <summary>时长（秒），未知为 0。</summary>
     public double DurationSec { get; set; }
 
@@ -28,6 +31,28 @@ public class Track
         : TimeSpan.FromSeconds(DurationSec).ToString(DurationSec >= 3600 ? @"h\:mm\:ss" : @"m\:ss");
 
     public string Display => string.IsNullOrWhiteSpace(Artist) ? Title : $"{Artist} - {Title}";
+
+    /// <summary>元数据副标题：歌手 · 专辑。</summary>
+    public string MetaText
+    {
+        get
+        {
+            var parts = new List<string>();
+            if (!string.IsNullOrWhiteSpace(Artist)) parts.Add(Artist!);
+            if (!string.IsNullOrWhiteSpace(Album)) parts.Add(Album!);
+            return string.Join(" · ", parts);
+        }
+    }
+
+    /// <summary>从音频文件读取标签信息填充本曲目。解析失败时保留已有标题（文件名）。</summary>
+    public void LoadMetadata()
+    {
+        var tag = AudioMetadata.Read(Path);
+        if (!string.IsNullOrWhiteSpace(tag.Title)) Title = tag.Title!;
+        Artist ??= tag.Artist;
+        Album ??= tag.Album;
+        if (DurationSec <= 0) DurationSec = tag.DurationSec;
+    }
 }
 
 /// <summary>
@@ -68,15 +93,23 @@ public class MusicPlaylist
     public int Count => _tracks.Count;
     public bool IsEmpty => _tracks.Count == 0;
 
+    /// <summary>是否在导入时读取音频标签。默认开启，批量导入大目录时可关闭以提高速度。</summary>
+    public bool ReadMetadataOnAdd { get; set; } = true;
+
     public void Add(Track track)
     {
+        if (ReadMetadataOnAdd) track.LoadMetadata();
         _tracks.Add(track);
         InvalidateShuffle();
     }
 
     public void AddRange(IEnumerable<Track> tracks)
     {
-        _tracks.AddRange(tracks);
+        foreach (var t in tracks)
+        {
+            if (ReadMetadataOnAdd) t.LoadMetadata();
+            _tracks.Add(t);
+        }
         InvalidateShuffle();
     }
 
@@ -98,7 +131,12 @@ public class MusicPlaylist
         }
 
         foreach (var f in files.Where(IsSupported).OrderBy(f => f, StringComparer.OrdinalIgnoreCase))
-            _tracks.Add(new Track { Path = f, Title = Path.GetFileNameWithoutExtension(f) });
+        {
+            // 导入时读取标题/歌手/专辑/时长，列表不再只显示文件名
+            var track = new Track { Path = f, Title = Path.GetFileNameWithoutExtension(f) };
+            if (ReadMetadataOnAdd) track.LoadMetadata();
+            _tracks.Add(track);
+        }
 
         InvalidateShuffle();
         return _tracks.Count - before;

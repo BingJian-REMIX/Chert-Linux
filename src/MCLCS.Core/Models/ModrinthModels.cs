@@ -106,6 +106,28 @@ public class ModrinthHashes
     public string Sha512 { get; set; } = "";
 }
 
+/// <summary>
+/// 详情页版本下拉的可选项：版本信息 + 该版本可直接下载的主文件。
+/// 此前 mod / 光影 / 资源包点详情直接跳转浏览器，没有页内详情也无法选择版本。
+/// </summary>
+public class ProjectVersionChoice
+{
+    public string Id { get; init; } = "";
+    public string Name { get; init; } = "";
+    public string VersionNumber { get; init; } = "";
+    public string GameVersionSummary { get; init; } = "";
+    public string LoaderSummary { get; init; } = "";
+    public string FileUrl { get; init; } = "";
+    public string FileName { get; init; } = "";
+    public string FileSha1 { get; init; } = "";
+
+    /// <summary>下拉显示文本：版本号 + 名称 + 支持的游戏版本。</summary>
+    public string DisplayText =>
+        string.IsNullOrEmpty(Name) || Name == VersionNumber
+            ? $"{VersionNumber}（{GameVersionSummary}）"
+            : $"{VersionNumber} · {Name}（{GameVersionSummary}）";
+}
+
 /// <summary>加载器类型枚举（用于筛选）。</summary>
 public enum LoaderType
 {

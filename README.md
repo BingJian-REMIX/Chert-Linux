@@ -2,7 +2,7 @@
 
 [MCLCS-WPF](https://cnb.cool/RLRS-Studio/MCLCS-WPF) 的 Linux 版本 —— 同一套 `MCLCS.Core` 引擎，Linux 原生界面（Avalonia）与命令行。
 
-> 主库：https://cnb.cool/RLRS-Studio/MCLCS-Linux ｜ GitHub 镜像：https://github.com/BingJian-REMIX/MCLCS-Linux （本地经 ghproxy 直接推送，cnb CI 仅构建+测试）。
+> 主库：https://cnb.cool/RLRS-Studio/MCLCS-Linux ｜ GitHub 镜像：https://github.com/BingJian-REMIX/MCLCS-Linux（本地经 ghproxy 直接推送，cnb CI 仅构建+测试）。
 
 ## 项目结构
 

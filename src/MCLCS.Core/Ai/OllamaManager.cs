@@ -28,6 +28,8 @@ public class LocalModelInfo
     public string RecommendTag { get; set; } = "";
     /// <summary>UI 副文案。</summary>
     public string SubText { get; set; } = "";
+
+    public override string ToString() => DisplayName;
 }
 
 /// <summary>本地模型目录（设置 → AI 助手 → 本地部署）。</summary>

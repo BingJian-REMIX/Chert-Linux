@@ -27,6 +27,7 @@ public static class Localization
         ["resourcepack"] = "tab.resourcepack.desc",
         ["modpack"] = "tab.modpack.desc",
         ["map"] = "tab.map.desc",
+        ["center"] = "tool.dlcenter.desc",
         // 工具箱：Id 与 title 键一致（tool.{id}）
         ["log"] = "tool.log.desc",
         ["crash"] = "tool.crash.desc",

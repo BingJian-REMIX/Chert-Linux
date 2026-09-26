@@ -4,7 +4,7 @@
         xmlns:vm="clr-namespace:MCLCS.Linux.App.ViewModels"
         xmlns:views="clr-namespace:MCLCS.Linux.App.Views"
         x:Class="MCLCS.Linux.App.MainWindow"
-        Title="MCLCS"
+        Title="朗希夏"
         Width="1100" Height="720" MinWidth="900" MinHeight="600"
         Background="{DynamicResource WindowBackground}"
         SystemDecorations="None"
@@ -46,7 +46,7 @@
         <ColumnDefinition Width="Auto"/>
       </Grid.ColumnDefinitions>
 
-      <TextBlock Grid.Column="0" Text="MCLCS" FontSize="17" FontWeight="Bold"
+      <TextBlock Grid.Column="0" Text="朗希夏" FontSize="17" FontWeight="Bold"
                  Foreground="White" VerticalAlignment="Center" Margin="16,0,0,0"/>
 
       <!-- 全局搜索 + 下载队列入口（占位，对齐 WPF 搜索栏 + 下载按钮）-->

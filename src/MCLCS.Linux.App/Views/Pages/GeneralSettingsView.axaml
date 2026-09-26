@@ -21,7 +21,7 @@
       <StackPanel Spacing="8">
         <TextBlock Text="启动与界面" FontWeight="Bold" FontSize="14"/>
         <ToggleSwitch IsChecked="{Binding AnimationsEnabled}" Content="启用界面动画" HorizontalAlignment="Left"/>
-        <ToggleSwitch IsChecked="{Binding FileWatchEnabled}" Content="启用文件监控（Mod/配置变更提醒）" HorizontalAlignment="Left"/>
+        <ToggleSwitch IsChecked="{Binding FileWatchEnabled}" Content="{Binding Source='tool.filewatch', Converter={StaticResource KeyToText}}" HorizontalAlignment="Left"/>
         <ToggleSwitch IsChecked="{Binding AutoStartLauncher}" Content="登录系统后自动启动启动器" HorizontalAlignment="Left"/>
         <ToggleSwitch IsChecked="{Binding MinimizeToTray}" Content="关闭时最小化到系统托盘" HorizontalAlignment="Left"/>
         <ToggleSwitch IsChecked="{Binding HighDpiIcons}" Content="使用高清图标（HiDPI 适配）" HorizontalAlignment="Left"/>

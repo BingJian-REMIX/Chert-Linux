@@ -14,20 +14,23 @@ public class UpdateCheckResult
     public string? LatestVersion { get; set; }
     /// <summary>新版本更新日志（发布说明），来自 latest.json 的 changelog 字段；为空时弹窗回退为「前往发布页」。</summary>
     public string? Changelog { get; set; }
-    /// <summary>下载入口（latest.json 的 downloadUrl，缺省按 CNB 发布页 v{版本} 格式构造）。</summary>
+    /// <summary>下载入口（latest.json 的 downloadUrl，缺省按 CNB Release v{版本} 格式构造）。</summary>
     public string? DownloadUrl { get; set; }
-    /// <summary>singlefile 包是否已在 CNB 发布（latest.json 的 singleFileAvailable 字段）。</summary>
+    /// <summary>singlefile 包是否已在 CNB Release 发布（latest.json 的 singleFileAvailable 字段）。</summary>
     public bool SingleFileAvailable { get; set; }
     public bool Mandatory { get; set; }
+    /// <summary>更新状态（latest.json 的 status 字段）："false"=冻结/撤回（即便有新版本也强制不提示，坏版本止血用）、"true"=普通可选更新、"emgent"=紧急更新（强制提示并置必更 Mandatory）。缺省/未知值等同 "true"。</summary>
+    public string? Status { get; set; }
     public string? Error { get; set; }
 }
 
 /// <summary>
 /// 启动器自动更新（全局功能 13）。
-/// 更新源为 CNB Pages 托管的静态 <c>latest.json</c>（<see cref="GameConstants.UpdateInfoUrl"/>，cnb.cool 官方静态页、国内直连）：
+/// 更新源为 GitHub Pages 托管的静态 <c>latest.json</c>（<see cref="GameConstants.UpdateInfoUrl"/>，GitHub Pages 走独立 CDN、通常不受 github.com 故障影响）。
+/// latest.json 为 WPF / Linux / Android 三端共用的多平台结构（根为 <c>wpf</c>/<c>linux</c>/<c>android</c> 小节），本启动器仅读取与 <see cref="GameConstants.PlatformId"/> 同名的 <c>linux</c> 小节：
 /// 普通 HTTPS GET 即可读取，终端用户零 git 依赖、不写临时仓库、无头客户端可达。
 /// 网络不可用 / JSON 解析失败时安全返回「无更新」（带 Error），绝不误报。
-/// 下载由 UI 层调用内置 <c>HttpDownloader</c> 直接拉取 latest.json 中的 cnb 发布直链，不依赖 winget / 浏览器。
+/// 下载由 UI 层调用内置 <c>HttpDownloader</c> 直接拉取 latest.json 中的 CNB Release 下载直链，不依赖 winget / 浏览器。
 /// </summary>
 public static class LauncherUpdater
 {
@@ -55,6 +58,19 @@ public static class LauncherUpdater
         return list;
     }
 
+    /// <summary>归一化 latest.json 的 status 字段为内部取值：false / true / emgent（空或未知值返回空串，按 "true" 处理）。大小写不敏感，emgent/emergency 等价。</summary>
+    private static string NormalizeStatus(string? raw)
+    {
+        var s = (raw ?? "").Trim().ToLowerInvariant();
+        return s switch
+        {
+            "false" => "false",
+            "true" => "true",
+            "emgent" or "emergency" => "emgent",
+            _ => ""
+        };
+    }
+
     /// <summary>检查更新；异常 / 解析失败时返回 Available=false（带 Error）。</summary>
     public static async Task<UpdateCheckResult> CheckAsync(string currentVersion, HttpClient? client = null)
     {
@@ -67,7 +83,15 @@ public static class LauncherUpdater
             UpdateInfo? info;
             try
             {
-                info = JsonSerializer.Deserialize<UpdateInfo>(json,
+                using var doc = JsonDocument.Parse(json);
+                // MCLCS-upgrade/latest.json 为三端共用的多平台结构：根为 { wpf:{...}, linux:{...}, android:{...} }。
+                // 本启动器只读取与 PlatformId 同名的平台小节；若根为旧的单平台对象则整体解析（向后兼容）。
+                var root = doc.RootElement;
+                var section = root.ValueKind == JsonValueKind.Object
+                    && root.TryGetProperty(GameConstants.PlatformId, out var s)
+                    && s.ValueKind == JsonValueKind.Object
+                        ? s : root;
+                info = section.Deserialize<UpdateInfo>(
                     new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
             }
             catch (JsonException ex)
@@ -85,13 +109,24 @@ public static class LauncherUpdater
             result.LatestVersion = info.Version;
             // 仅当最新版本严格大于当前版本才提示更新（当前==最新不会误报「更新到自身」）。
             result.Available = IsNewer(currentVersion, info.Version);
+            result.Status = NormalizeStatus(info.Status);
+
+            // status 字段可覆盖版本比较的结果，表达「更新紧急度 / 是否撤回」：
+            //  - "false"：冻结/撤回，即便有新版本也强制不提示（坏版本止血用）。
+            //  - "emgent"：紧急更新，强制提示并置为必更（Mandatory=true）。
+            //  - "true"/缺省：尊重 IsNewer 的常规可选更新。
+            if (result.Status == "false")
+                result.Available = false;
+            else if (result.Status == "emgent" && result.Available)
+                result.Mandatory = true;
+
             if (result.Available)
             {
                 result.Changelog = info.Changelog;
                 result.DownloadUrl = info.DownloadUrl
-                    ?? $"{GameConstants.CnbRepoUrl}/-/releases/download/v{info.Version}/MCLCS-v{info.Version}-win-x64.zip";
+                    ?? $"{GameConstants.CnbReleaseBase}/-/releases/download/v{info.Version}/MCLCS-{info.Version}-Linux-x64.zip";
                 result.SingleFileAvailable = info.SingleFileAvailable;
-                result.Mandatory = info.Mandatory;
+                result.Mandatory = result.Mandatory || info.Mandatory;
             }
         }
         catch (Exception ex)
@@ -105,12 +140,13 @@ public static class LauncherUpdater
         return result;
     }
 
-    /// <summary>EdgeOne Pages 上 latest.json 的字段映射（大小写不敏感）。</summary>
+    /// <summary>GitHub Pages 上 latest.json 的字段映射（大小写不敏感）。</summary>
     private sealed class UpdateInfo
     {
         [JsonPropertyName("version")] public string? Version { get; set; }
         [JsonPropertyName("channel")] public string? Channel { get; set; }
         [JsonPropertyName("mandatory")] public bool Mandatory { get; set; }
+        [JsonPropertyName("status")] public string? Status { get; set; }
         [JsonPropertyName("releaseDate")] public string? ReleaseDate { get; set; }
         [JsonPropertyName("downloadUrl")] public string? DownloadUrl { get; set; }
         [JsonPropertyName("singleFileAvailable")] public bool SingleFileAvailable { get; set; }

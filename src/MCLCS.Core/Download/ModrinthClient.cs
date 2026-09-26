@@ -21,7 +21,14 @@ public class ModrinthClient
     {
         var facets = new List<List<string>>();
         if (type.HasValue) facets.Add(new List<string> { "project_type:" + ProjectTypeString(type.Value) });
-        if (loader != LoaderType.Any) facets.Add(new List<string> { "categories:" + LoaderString(loader) });
+        // bug3.txt #4：光影 / 资源包没有加载器分类，带 loader facet 会把结果全部过滤掉导致「无结果」。
+        // 仅对 mod / modpack 这类真正有加载器分类的项目追加 loader facet。
+        if (loader != LoaderType.Any
+            && type is not ModrinthProjectType.Shader
+            and not ModrinthProjectType.ResourcePack)
+        {
+            facets.Add(new List<string> { "categories:" + LoaderString(loader) });
+        }
         if (!string.IsNullOrEmpty(gameVersion)) facets.Add(new List<string> { "versions:" + gameVersion });
 
         var url = $"{GameConstants.ModrinthApiBase}/search?limit={limit}&offset={offset}";

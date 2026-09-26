@@ -88,12 +88,40 @@ public static class VersionMerger
             if (merged.JavaVersion is null) merged.JavaVersion = p.JavaVersion;
         }
 
-        // 按 name 去重（保留首次出现 = 子版本优先）
+        // 按 name 去重：同名库可能存在多条（部分启动器写出的 JSON 会出现「仅 artifact」与「带 natives」的重复条目）。
+        // 直接取首条会丢掉 natives/classifiers，导致原生库（如 lwjgl.dll）缺失崩溃。
+        // 这里改为「合并同名字段」——把各条目的 natives / downloads(artifact+classifiers) / extract / rules 并集，
+        // 保留信息最完整的结果（子版本优先：先以首条为基，再用后续条目补齐缺失字段）。
         merged.Libraries = merged.Libraries
             .GroupBy(l => l.Name, StringComparer.OrdinalIgnoreCase)
-            .Select(g => g.First())
+            .Select(g => MergeLibraryEntries(g.ToList()))
             .ToList();
 
         return merged;
+    }
+
+    /// <summary>合并同名库条目，补齐缺失字段（natives / downloads / extract / rules），避免去重时丢失原生库定义。</summary>
+    private static Library MergeLibraryEntries(List<Library> sameName)
+    {
+        var baseLib = sameName[0];
+        foreach (var other in sameName.Skip(1))
+        {
+            if (baseLib.Natives is null && other.Natives is not null) baseLib.Natives = other.Natives;
+            if (baseLib.Extract is null && other.Extract is not null) baseLib.Extract = other.Extract;
+            if (baseLib.Rules is null && other.Rules is not null) baseLib.Rules = other.Rules;
+            if (baseLib.Downloads is null && other.Downloads is not null)
+            {
+                baseLib.Downloads = other.Downloads;
+            }
+            else if (baseLib.Downloads is not null && other.Downloads is not null)
+            {
+                if (baseLib.Downloads.Artifact is null && other.Downloads.Artifact is not null)
+                    baseLib.Downloads.Artifact = other.Downloads.Artifact;
+                foreach (var kv in other.Downloads.Classifiers)
+                    if (!baseLib.Downloads.Classifiers.ContainsKey(kv.Key))
+                        baseLib.Downloads.Classifiers[kv.Key] = kv.Value;
+            }
+        }
+        return baseLib;
     }
 }

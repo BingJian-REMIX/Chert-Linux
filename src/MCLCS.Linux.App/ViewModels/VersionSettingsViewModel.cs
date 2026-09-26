@@ -42,12 +42,30 @@ public class VersionSettingsViewModel : ObservableObject
     public string? CustomGameDir
     {
         get => _customGameDir;
-        set { if (SetField(ref _customGameDir, value)) OnPropertyChanged(nameof(EffectiveGameDirDisplay)); }
+        set
+        {
+            if (!SetField(ref _customGameDir, value)) return;
+            OnPropertyChanged(nameof(EffectiveGameDirDisplay));
+            RefreshInstalled();
+        }
     }
 
-    public string EffectiveGameDirDisplay =>
-        VersionProfileStore.EffectiveGameDir(_gameRoot, _versionId,
-            new VersionProfile { Isolation = Isolation, CustomGameDir = CustomGameDir });
+    /// <summary>
+    /// 有效工作目录：与启动器保持一致——自定义目录优先；选定自动隔离或版本实际已通过
+    /// .mclcs-isolated marker 隔离时指向 versions/&lt;id&gt;，否则回落共享根目录。
+    /// 关键修正：之前仅按 profile.Isolation 字段解析，当版本已隔离但 profile 标 Shared（孤儿 marker）
+    /// 时误把展示/操作目录落到根游戏目录。
+    /// </summary>
+    public string EffectiveGameDirDisplay => ComputeEffectiveGameDir();
+
+    private string ComputeEffectiveGameDir()
+    {
+        if (Isolation == IsolationMode.Custom && !string.IsNullOrWhiteSpace(CustomGameDir))
+            return CustomGameDir!;
+        if (Isolation == IsolationMode.Auto || VersionIsolation.IsIsolated(_gameRoot, _versionId))
+            return Path.Combine(_gameRoot, "versions", _versionId);
+        return _gameRoot;
+    }
 
     // ---- ③ 模组加载器 ----
     public ModLoaderKind DetectedLoader { get; }
@@ -89,6 +107,7 @@ public class VersionSettingsViewModel : ObservableObject
             if (Enum.TryParse<IsolationMode>(value, out var m)) Isolation = m;
             OnPropertyChanged(nameof(EffectiveGameDirDisplay));
             OnPropertyChanged(nameof(IsCustomDir));
+            RefreshInstalled();
         }
     }
     /// <summary>是否处于「自定义目录」隔离模式（控制自定义目录输入框可见性）。</summary>

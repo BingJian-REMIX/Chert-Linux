@@ -169,10 +169,6 @@ internal static class Program
                     // 游戏页捕获后，额外抓一张「版本设置」对话框（含版本隔离开关 + 成就）
                     if (name == "home")
                         CaptureVersionSettings(mw, outDir, suffix);
-
-                    // AI 助手页：额外抓「品牌商标 / 首字徽章」两种头像状态
-                    if (sid == "aichat")
-                        CaptureAiBrandVariants(mw, outDir, suffix);
                 }
                 catch (Exception ex)
                 {
@@ -366,63 +362,6 @@ internal static class Program
 
         DialogService.Instance.Complete(null);
         Dispatcher.UIThread.RunJobs();
-    }
-
-    /// <summary>AI 助手头像三级兜底渲染验证：① 品牌商标 ② 首字徽章 ③ 机器人（默认 AI 未启用）。
-    /// 状态通过反射写入私有 setter，避免为截图改动生产代码的可见性。</summary>
-    private static void CaptureAiBrandVariants(Window mw, string outDir, string suffix)
-    {
-        // 多次导航会残留旧的 AiAssistView 实例（仍在视觉树中），仅取 FirstOrDefault
-        // 可能命中已脱离界面的那个；这里对所有实例注入，确保当前显示的那个生效。
-        var views = mw.GetVisualDescendants().OfType<AiAssistView>().ToList();
-        var vms = views.Select(v => v.DataContext).OfType<AiAssistViewModel>().ToList();
-        Console.WriteLine($"  [dbg-ai] AiAssistView 实例数={views.Count} 可注入 VM={vms.Count}");
-        if (vms.Count == 0) return;
-
-        void SetAll(string prop, object? v)
-        {
-            foreach (var vm in vms)
-                typeof(AiAssistViewModel).GetProperty(prop)!.GetSetMethod(true)!.Invoke(vm, new[] { v });
-        }
-
-        // ② 首字徽章：模拟「识别到 DeepSeek 但商标没拉到」
-        SetAll("HasLogo", false);
-        SetAll("AssistantInitial", "D");
-        SetAll("AssistantBrandBrush", new SolidColorBrush(Color.FromRgb(76, 154, 255)));
-        SetAll("HasBrand", true);
-        Dispatcher.UIThread.RunJobs();
-        var probe = vms[0];
-        Console.WriteLine($"  [dbg-ai] 徽章态: HasBrand={probe.HasBrand} HasLogo={probe.HasLogo} " +
-            $"badge={probe.ShowBrandBadge} robot={probe.ShowRobotFallback} initial={probe.AssistantInitial}");
-        CaptureNow(mw, Path.Combine(outDir, $"ai-brand-badge{suffix}.png"));
-        Console.WriteLine($"[ok]   ai-brand-badge{suffix} -> {Path.Combine(outDir, $"ai-brand-badge{suffix}.png")}");
-
-        // ① 品牌商标：本地生成确定性 PNG 载入，验证商标层渲染（不依赖联网）
-        try
-        {
-            var tmp = Path.Combine(Path.GetTempPath(), "mclcs_shot_ai_logo.png");
-            using (var surface = SKSurface.Create(new SKImageInfo(64, 64)))
-            {
-                var canvas = surface.Canvas;
-                canvas.Clear(SKColors.White);
-                using var paint = new SKPaint { Color = new SKColor(76, 154, 255), IsAntialias = true };
-                canvas.DrawCircle(32, 32, 24, paint);
-                using var img = surface.Snapshot();
-                using var encoded = img.Encode(SKEncodedImageFormat.Png, 100);
-                File.WriteAllBytes(tmp, encoded.ToArray());
-            }
-            SetAll("AssistantLogo", new Bitmap(tmp));   // 不 dispose：VM 持有引用供渲染
-            SetAll("HasLogo", true);
-            Dispatcher.UIThread.RunJobs();
-            Console.WriteLine($"  [dbg-ai] 商标态: HasLogo={probe.HasLogo} badge={probe.ShowBrandBadge} " +
-                $"robot={probe.ShowRobotFallback}");
-            Capture(mw, Path.Combine(outDir, $"ai-brand-logo{suffix}.png"));
-            Console.WriteLine($"[ok]   ai-brand-logo{suffix}  -> {Path.Combine(outDir, $"ai-brand-logo{suffix}.png")}");
-        }
-        catch (Exception ex)
-        {
-            Console.Error.WriteLine($"  [warn] ai-brand-logo: {ex.Message}");
-        }
     }
 
     /// <summary>阻塞等待网络结果落地：Thread.Sleep 让异步 I/O 在 ThreadPool 完成，

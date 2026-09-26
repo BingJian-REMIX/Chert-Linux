@@ -1,0 +1,41 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:MCLCS.Linux.App.ViewModels"
+             x:Class="MCLCS.Linux.App.Views.Pages.AchievementView">
+  <Grid Margin="12">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="*"/>
+    </Grid.RowDefinitions>
+
+    <WrapPanel Grid.Row="0" Margin="0,0,0,8">
+      <TextBlock Text="成就展示" FontSize="16" FontWeight="Bold" VerticalAlignment="Center"
+                 Foreground="{DynamicResource PrimaryForeground}"/>
+      <Button Content="刷新" Command="{Binding RefreshCommand}" Width="60" Padding="0,2" Margin="16,0,0,0"/>
+    </WrapPanel>
+
+    <ListBox Grid.Row="1" ItemsSource="{Binding Saves}"
+             Background="{DynamicResource InputBackground}" BorderBrush="{DynamicResource InputBorder}">
+      <ListBox.ItemTemplate>
+        <DataTemplate>
+          <Border BorderBrush="{DynamicResource ControlBorder}" BorderThickness="0,0,0,1" Padding="8,6">
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+              </Grid.ColumnDefinitions>
+              <StackPanel Grid.Column="0">
+                <TextBlock Text="{Binding SaveName}" FontWeight="Bold" FontSize="13"/>
+                <TextBlock Text="{Binding Summary}" FontSize="11" Margin="0,2,0,0"
+                           Foreground="{DynamicResource SecondaryForeground}"/>
+              </StackPanel>
+              <TextBlock Grid.Column="1" Text="{Binding PurpleText}"
+                         FontSize="14" FontWeight="Bold" VerticalAlignment="Center"
+                         Foreground="#C084FC"/>
+            </Grid>
+          </Border>
+        </DataTemplate>
+      </ListBox.ItemTemplate>
+    </ListBox>
+  </Grid>
+</UserControl>

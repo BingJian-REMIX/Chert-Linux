@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using System.Threading.Tasks;
+using MCLCS.Core.Localization;
 using MCLCS.Core.Profiles;
 using MCLCS.Core.Toolbox;
 using MCLCS.Core.Utils;
@@ -44,10 +45,10 @@ public sealed class FileWatchService
             var more = added.Count > 3 ? $" 等共 {added.Count} 个" : "";
             MCLCS.Linux.App.ToastService.Instance.Show(new ToastOptions
             {
-                Title = "文件变更检测",
-                Message = $"检测到新增文件：{preview}{more}",
+                Title = LocaleManager.T("tool.filewatch"),
+                Message = LocaleManager.Tf("tool.filewatch.toast", preview + more),
                 DurationMs = 8000,
-                ActionText = "查看详情",
+                ActionText = LocaleManager.T("tool.filewatch.detail"),
                 Action = OpenDetails
             });
         }

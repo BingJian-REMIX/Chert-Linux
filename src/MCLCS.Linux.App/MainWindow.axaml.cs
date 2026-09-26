@@ -57,6 +57,8 @@ public partial class MainWindow : Window
         // 焦点每次回到启动器时也重新检测（规格 2.3-16 / 用户需求）
         Opened += (_, _) => _ = FileWatchService.Instance.RunScanAsync();
         Activated += (_, _) => _ = FileWatchService.Instance.RunScanAsync();
+        // 启动后异步检查启动器更新（有可用版本时弹出 UpdateDialog；失败静默不阻塞）
+        Opened += (_, _) => _ = UpdateDialog.CheckAndShowAsync(this);
         // 初始页面路由（默认主页为游戏页，无侧栏）
         ShowPage();
     }
@@ -221,7 +223,9 @@ public partial class MainWindow : Window
             (MainTabKind.Download, "resourcepack") => new DownloadPageView(),
             (MainTabKind.Download, "modpack") => new DownloadPageView(),
             (MainTabKind.Download, "map") => new DownloadPageView(),
+            (MainTabKind.Download, "shadertoken") => new ShaderTokenView(),
             (MainTabKind.Download, "versionlist") => new VersionListView(),
+            (MainTabKind.Download, "center") => new DownloadCenterView(),
             (MainTabKind.Toolbox, "log") => new LogView(),
             (MainTabKind.Toolbox, "clean") => new CleanerView(),
             (MainTabKind.Toolbox, "backup") => new BackupView(),
@@ -242,16 +246,13 @@ public partial class MainWindow : Window
             (MainTabKind.Toolbox, "packmaker") => new PackMakerView(),
             (MainTabKind.Toolbox, "command") => new CommandView(),
             (MainTabKind.Toolbox, "devtools") => new DevToolsView(),
+            (MainTabKind.Toolbox, "addserver") => new AddServerView(),
+            (MainTabKind.Toolbox, "achievement") => new AchievementView(),
+            (MainTabKind.Toolbox, "serverpack") => new ServerPackView(),
             // 年度报告仅在周年日入口可见，保留路由供主页跳转
             (MainTabKind.Toolbox, "annual") => new AnnualReportView(),
-            (MainTabKind.Settings, "appearance") => new AppearanceView(),
-            (MainTabKind.Settings, "account") => new AccountsView(),
-            (MainTabKind.Settings, "general") => new GeneralSettingsView(),
-            (MainTabKind.Settings, "launch") => new LaunchSettingsView(),
-            (MainTabKind.Settings, "download") => new DownloadSettingsView(),
-            (MainTabKind.Settings, "recommend") => new RecommendSettingsView(),
-            (MainTabKind.Settings, "ai") => new AiSettingsView(),
-            (MainTabKind.Settings, "about") => new AboutView(),
+            // 设置：单页（左侧分类列表 + 右侧内容区），对应 WPF 的单 SettingsView
+            (MainTabKind.Settings, _) => new SettingsView(),
             _ => MakePlaceholder()
         };
         PageRegion.Content = page;

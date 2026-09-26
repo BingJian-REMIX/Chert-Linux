@@ -3,6 +3,7 @@ using MCLCS.Core.Download;
 using MCLCS.Core.Models;
 using MCLCS.Core.MultiInstance;
 using MCLCS.Core.Profiles;
+using MCLCS.Core.Toolbox;
 using MCLCS.Core.Utils;
 
 namespace MCLCS.Core.Launcher;
@@ -100,6 +101,26 @@ public static class GameLauncher
         return vars;
     }
 
+    /// <summary>把一行启动器日志同时推给调用方 logger（状态栏）与磁盘日志文件（logs/mclcs_launcher.log，可在日志页查看）。</summary>
+    private static void LogLine(ILogger? logger, string gameRoot, string message)
+    {
+        logger?.Log(message);
+        AppendLauncherLog(gameRoot, message);
+    }
+
+    /// <summary>追加一行到启动器自身日志文件（logs/mclcs_launcher.log），供日志页查看。</summary>
+    private static void AppendLauncherLog(string gameRoot, string message)
+    {
+        try
+        {
+            var dir = LogManager.LogsDir(gameRoot);
+            Directory.CreateDirectory(dir);
+            var path = Path.Combine(dir, "mclcs_launcher.log");
+            File.AppendAllText(path, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {message}\n");
+        }
+        catch { /* 日志写入失败不得阻塞启动 */ }
+    }
+
     /// <summary>启动游戏并等待退出，随后检测崩溃报告。</summary>
     public static async Task<LaunchResult> LaunchAsync(string gameRoot,
         string versionId,
@@ -117,7 +138,7 @@ public static class GameLauncher
         if (!string.Equals(gameDir, gameRoot, StringComparison.Ordinal))
         {
             VersionIsolation.EnsureFolders(gameDir);
-            logger?.Log($"版本 {versionId} 已启用隔离/自定义目录，工作目录：{gameDir}");
+            LogLine(logger, gameRoot, $"版本 {versionId} 已启用隔离/自定义目录，工作目录：{gameDir}");
         }
 
         // 注入 logging 日志配置（下载 log4j XML 并注入 -Dlog4j.configurationFile）
@@ -160,7 +181,12 @@ public static class GameLauncher
         psi.ArgumentList.Add(resolved.MainClass);
         foreach (var a in resolved.GameArgs) psi.ArgumentList.Add(a);
 
-        logger?.Log($"启动版本 {merged.Id}（{java.MajorVersion}）：{resolved.MainClass}");
+        LogLine(logger, gameRoot, $"启动版本 {merged.Id}（{java.MajorVersion}）：{resolved.MainClass}");
+
+        // 调试导出：原样打印完整启动命令，便于在本机 build 后从日志里复制逐字可运行的命令行。
+        // 含空格的参数加引号，方便直接粘贴。
+        var cmdLine = string.Join(" ", psi.ArgumentList.Select(a => a.Contains(' ') ? "\"" + a + "\"" : a));
+        LogLine(logger, gameRoot, $"启动命令：{psi.FileName} {cmdLine}");
 
         using var proc = Process.Start(psi)
             ?? throw new InvalidOperationException("无法启动游戏进程");
@@ -178,9 +204,9 @@ public static class GameLauncher
         // 隔离版本的崩溃报告落在自己的工作目录下
         var crash = CrashDetector.FindLatestCrashReport(gameDir);
         if (crash is not null)
-            logger?.Log($"检测到崩溃报告：{crash}（退出码 {exitCode}）");
+            LogLine(logger, gameRoot, $"检测到崩溃报告：{crash}（退出码 {exitCode}）");
         else
-            logger?.Log($"游戏进程已退出（退出码 {exitCode}），未检测到崩溃报告。");
+            LogLine(logger, gameRoot, $"游戏进程已退出（退出码 {exitCode}），未检测到崩溃报告。");
 
         var result = new LaunchResult { ExitCode = exitCode, CrashReportPath = crash };
 
@@ -196,11 +222,11 @@ public static class GameLauncher
                 var plan = CrashRepairEngine.BuildPlan(analysis, profile, java, gameRoot, versionId);
                 result.Analysis = analysis;
                 result.RepairPlan = plan;
-                logger?.Log($"崩溃类别：{analysis.Category}，可自动修复：{plan.CanRepair}（{plan.Strategy}）");
+                LogLine(logger, gameRoot, $"崩溃类别：{analysis.Category}，可自动修复：{plan.CanRepair}（{plan.Strategy}）");
             }
             catch (Exception ex)
             {
-                logger?.Log($"崩溃分析失败：{ex.Message}");
+                LogLine(logger, gameRoot, $"崩溃分析失败：{ex.Message}");
             }
         }
 

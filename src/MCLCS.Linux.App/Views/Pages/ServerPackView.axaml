@@ -1,0 +1,127 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:MCLCS.Linux.App.ViewModels"
+             x:Class="MCLCS.Linux.App.Views.Pages.ServerPackView">
+  <Grid Margin="12">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="*"/>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="Auto"/>
+    </Grid.RowDefinitions>
+
+    <!-- ===== 工具栏 ===== -->
+    <WrapPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,10">
+      <TextBlock Text="容量上限" VerticalAlignment="Center" Margin="0,0,6,0"
+                 Foreground="{DynamicResource SecondaryForeground}"/>
+      <TextBox Text="{Binding CapacityMb, UpdateSourceTrigger=PropertyChanged}" Width="64"
+               Padding="6,3" VerticalContentAlignment="Center"
+               Background="{DynamicResource InputBackground}" Foreground="{DynamicResource InputForeground}"
+               BorderBrush="{DynamicResource InputBorder}" ToolTip.Tip="超过该上限后按 LRU 自动淘汰最旧的"/>
+      <TextBlock Text="MB" VerticalAlignment="Center" Margin="4,0,16,0"
+                 Foreground="{DynamicResource SecondaryForeground}"/>
+
+      <Button Content="导出到文件夹" Command="{Binding ExportCommand}" Width="104" Padding="0,4"
+              Margin="0,0,8,0"/>
+      <Button Content="打开缓存目录" Command="{Binding OpenFolderCommand}" Width="96" Padding="0,4"
+              Margin="0,0,8,0"/>
+      <Button Content="清空" Command="{Binding ClearCommand}" Width="60" Padding="0,4"
+              Margin="0,0,8,0"/>
+      <Button Content="刷新" Command="{Binding RefreshCommand}" Width="60" Padding="0,4"/>
+    </WrapPanel>
+
+    <!-- ===== 概览 ===== -->
+    <Border Grid.Row="1" Background="{DynamicResource ControlBackground}"
+            BorderBrush="{DynamicResource ControlBorder}" BorderThickness="1" CornerRadius="8"
+            Padding="10,7" Margin="0,0,0,10">
+      <StackPanel Orientation="Horizontal">
+        <TextBlock Foreground="{DynamicResource SecondaryForeground}">
+          <Run Text="共 "/>
+          <Run Text="{Binding Stats.Count}" FontWeight="Bold" Foreground="{DynamicResource PrimaryForeground}"/>
+          <Run Text=" 份缓存，占用 "/>
+          <Run Text="{Binding Stats.TotalMb}" FontWeight="Bold" Foreground="{DynamicResource PrimaryForeground}"/>
+          <Run Text=" MB（累计命中 "/>
+          <Run Text="{Binding Stats.TotalHits}" FontWeight="Bold" Foreground="{DynamicResource PrimaryForeground}"/>
+          <Run Text=" 次），容量上限 "/>
+          <Run Text="{Binding CapacityMb}" FontWeight="Bold" Foreground="{DynamicResource PrimaryForeground}"/>
+          <Run Text=" MB"/>
+        </TextBlock>
+      </StackPanel>
+    </Border>
+
+    <!-- ===== 列表 ===== -->
+    <Border Grid.Row="2" BorderBrush="{DynamicResource ListViewBorder}" BorderThickness="1" CornerRadius="6">
+      <Grid>
+        <Grid.RowDefinitions>
+          <RowDefinition Height="Auto"/>
+          <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0" Background="{DynamicResource ListViewHeaderBackground}" Padding="10,5">
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*"/>
+              <ColumnDefinition Width="160"/>
+              <ColumnDefinition Width="90"/>
+              <ColumnDefinition Width="60"/>
+              <ColumnDefinition Width="120"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0" Text="文件名" FontSize="11" Foreground="{DynamicResource SecondaryForeground}"/>
+            <TextBlock Grid.Column="1" Text="来源服务器" FontSize="11" Foreground="{DynamicResource SecondaryForeground}"/>
+            <TextBlock Grid.Column="2" Text="大小" FontSize="11" Foreground="{DynamicResource SecondaryForeground}"/>
+            <TextBlock Grid.Column="3" Text="命中" FontSize="11" Foreground="{DynamicResource SecondaryForeground}"/>
+            <TextBlock Grid.Column="4" Text="最后使用" FontSize="11" Foreground="{DynamicResource SecondaryForeground}"/>
+          </Grid>
+        </Border>
+
+        <ListBox Grid.Row="1" ItemsSource="{Binding Packs}" SelectedItem="{Binding Selected}"
+                 Background="{DynamicResource ListViewBackground}" BorderThickness="0">
+          <ListBox.Styles>
+            <Style Selector="ListBoxItem">
+              <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            </Style>
+          </ListBox.Styles>
+          <ListBox.ItemTemplate>
+            <DataTemplate>
+              <Grid Margin="0,3">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*"/>
+                  <ColumnDefinition Width="160"/>
+                  <ColumnDefinition Width="90"/>
+                  <ColumnDefinition Width="60"/>
+                  <ColumnDefinition Width="120"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="{Binding DisplayName}" FontWeight="SemiBold"
+                           TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Url}"/>
+                <TextBlock Grid.Column="1" Text="{Binding ServerAddress}" FontSize="11"
+                           TextTrimming="CharacterEllipsis" Foreground="{DynamicResource SecondaryForeground}"/>
+                <TextBlock Grid.Column="2" Text="{Binding SizeText}" FontSize="11"
+                           Foreground="{DynamicResource SecondaryForeground}"/>
+                <TextBlock Grid.Column="3" Text="{Binding Hits}" FontSize="11"
+                           Foreground="{DynamicResource SecondaryForeground}"/>
+                <TextBlock Grid.Column="4" Text="{Binding LastUsedText}" FontSize="11"
+                           Foreground="{DynamicResource SecondaryForeground}"/>
+              </Grid>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+
+        <TextBlock Grid.Row="1" Text="还没有缓存任何服务器资源包。进服时如果服务器下发了资源包，会自动出现在这里。"
+                   Foreground="{DynamicResource SecondaryForeground}" FontSize="12"
+                   HorizontalAlignment="Center" VerticalAlignment="Center" TextWrapping="Wrap"
+                   MaxWidth="420" TextAlignment="Center" IsVisible="{Binding IsEmpty}"/>
+      </Grid>
+    </Border>
+
+    <!-- ===== 选中操作 ===== -->
+    <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,10,0,0">
+      <Button Content="导出到资源包目录" Command="{Binding ExportToResourcePacksCommand}" Width="136"
+              Padding="0,4" Margin="0,0,8,0"/>
+      <Button Content="删除选中" Command="{Binding RemoveCommand}" Width="84" Padding="0,4"/>
+    </StackPanel>
+
+    <TextBlock Grid.Row="4" Text="{Binding StatusMessage}" Margin="0,6,0,0"
+               Foreground="{DynamicResource StatusForeground}" TextWrapping="Wrap"/>
+  </Grid>
+</UserControl>

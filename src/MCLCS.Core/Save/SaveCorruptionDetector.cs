@@ -65,17 +65,32 @@ public static class SaveCorruptionDetector
     public static List<SaveCorruptionReport> Scan(string gameRoot)
     {
         var result = new List<SaveCorruptionReport>();
-        var savesDir = SavesDir(gameRoot);
-        if (!Directory.Exists(savesDir)) return result;
 
-        foreach (var dir in Directory.GetDirectories(savesDir))
+        // 待扫描根：共享 saves/ + 各版本隔离 versions/<id>/saves/
+        // 仅扫共享目录会漏掉版本隔离存档，且共享/隔离同名世界会被 ScanCorruptionAsync 按 SaveName 误匹配。
+        var scanRoots = new List<string> { SavesDir(gameRoot) };
+        var versionsDir = Path.Combine(gameRoot, "versions");
+        if (Directory.Exists(versionsDir))
         {
-            var name = Path.GetFileName(dir);
-            if (name.EndsWith(".backup", StringComparison.OrdinalIgnoreCase)
-                || Regex.IsMatch(name, @"\.backup-\d{14}$")) continue;
+            foreach (var v in Directory.GetDirectories(versionsDir))
+            {
+                var iso = Path.Combine(v, "saves");
+                if (Directory.Exists(iso)) scanRoots.Add(iso);
+            }
+        }
 
-            var report = ScanSingle(dir);
-            if (report is not null) result.Add(report);
+        foreach (var savesDir in scanRoots)
+        {
+            if (!Directory.Exists(savesDir)) continue;
+            foreach (var dir in Directory.GetDirectories(savesDir))
+            {
+                var name = Path.GetFileName(dir);
+                if (name.EndsWith(".backup", StringComparison.OrdinalIgnoreCase)
+                    || Regex.IsMatch(name, @"\.backup-\d{14}$")) continue;
+
+                var report = ScanSingle(dir);
+                if (report is not null) result.Add(report);
+            }
         }
         return result;
     }

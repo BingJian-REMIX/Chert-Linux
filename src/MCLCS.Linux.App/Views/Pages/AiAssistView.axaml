@@ -57,24 +57,15 @@
                         BorderBrush="{DynamicResource ControlBorder}" BorderThickness="1"
                         x:CompileBindings="False">
                   <Grid>
-                    <!-- ① 品牌官方商标：白色圆形衬底确保在暗色主题下也能看清深色 favicon -->
+                    <!-- 品牌 logo：白色圆形衬底确保在暗色主题下也能看清深色 favicon -->
                     <Border Width="22" Height="22" CornerRadius="11" HorizontalAlignment="Center" VerticalAlignment="Center"
                             Background="#FFFFFF"
                             IsVisible="{Binding HasLogo, RelativeSource={RelativeSource FindAncestor, AncestorType=UserControl}, Converter={StaticResource BoolToVis}}">
                       <Image Source="{Binding AssistantLogo, RelativeSource={RelativeSource FindAncestor, AncestorType=UserControl}}"
                              Stretch="Uniform" Margin="2"/>
                     </Border>
-                    <!-- ② 首字徽章：商标没拉到、但已识别出品牌时显示（首字 + 品牌色） -->
-                    <Border Width="30" Height="30" CornerRadius="15" HorizontalAlignment="Center" VerticalAlignment="Center"
-                            Background="{Binding AssistantBrandBrush, RelativeSource={RelativeSource FindAncestor, AncestorType=UserControl}}"
-                            IsVisible="{Binding ShowBrandBadge, RelativeSource={RelativeSource FindAncestor, AncestorType=UserControl}, Converter={StaticResource BoolToVis}}">
-                      <TextBlock Text="{Binding AssistantInitial, RelativeSource={RelativeSource FindAncestor, AncestorType=UserControl}}"
-                                 FontSize="15" FontWeight="Bold" Foreground="#FFFFFF"
-                                 HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                    </Border>
-                    <!-- ③ 机器人兜底：仅当 AI 未启用/未配置（品牌与商标都拿不到）时 -->
                     <TextBlock Text="🤖" FontSize="16" HorizontalAlignment="Center" VerticalAlignment="Center"
-                               IsVisible="{Binding ShowRobotFallback, RelativeSource={RelativeSource FindAncestor, AncestorType=UserControl}, Converter={StaticResource BoolToVis}}"/>
+                               IsVisible="{Binding HasLogo, RelativeSource={RelativeSource FindAncestor, AncestorType=UserControl}, Converter={StaticResource InvBoolToVis}}"/>
                   </Grid>
                 </Border>
                 <Border Background="{DynamicResource ControlBackground}" CornerRadius="12,12,12,4"

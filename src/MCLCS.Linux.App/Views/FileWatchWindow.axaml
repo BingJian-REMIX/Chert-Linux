@@ -2,7 +2,6 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:pages="clr-namespace:MCLCS.Linux.App.Views.Pages"
         x:Class="MCLCS.Linux.App.Views.FileWatchWindow"
-        Title="文件变更检测"
         Width="820" Height="560"
         MinWidth="560" MinHeight="360"
         WindowStartupLocation="CenterOwner"

@@ -1,0 +1,82 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:MCLCS.Linux.App.ViewModels"
+             x:Class="MCLCS.Linux.App.Views.Pages.DownloadCenterView">
+  <UserControl.DataContext>
+    <vm:DownloadCenterViewModel />
+  </UserControl.DataContext>
+
+  <Grid Margin="12" RowDefinitions="Auto,Auto,*,Auto,Auto">
+    <TextBlock Grid.Row="0" Text="下载中心 (Modrinth)" FontSize="16" FontWeight="Bold"
+               Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,8" />
+
+    <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,8" Spacing="8">
+      <TextBox Width="240" Text="{Binding Query, UpdateSourceTrigger=PropertyChanged}"
+               Watermark="搜索关键词" />
+      <Button Content="搜索" Command="{Binding SearchCommand}" Padding="8,2" />
+      <ComboBox Width="120" ItemsSource="{Binding Loaders}"
+                SelectedItem="{Binding SelectedLoader}" ToolTip.Tip="加载器" />
+      <ComboBox Width="120" ItemsSource="{Binding GameVersions}"
+                SelectedItem="{Binding SelectedGameVersion}" ToolTip.Tip="游戏版本" />
+      <ComboBox Width="140" ItemsSource="{Binding ProjectTypes}"
+                SelectedItem="{Binding SelectedProjectType}" ToolTip.Tip="类型" />
+    </StackPanel>
+
+    <ListBox Grid.Row="2" ItemsSource="{Binding Results}" SelectedItem="{Binding SelectedResult}"
+             Background="{DynamicResource ControlBackground}"
+             Foreground="{DynamicResource TextPrimaryBrush}"
+             BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
+      <ListBox.ItemTemplate>
+        <DataTemplate>
+          <StackPanel Margin="4">
+            <TextBlock Text="{Binding Title}" FontWeight="Bold"
+                       Foreground="{DynamicResource TextPrimaryBrush}" />
+            <TextBlock Text="{Binding Summary}" TextWrapping="Wrap" Opacity="0.7"
+                       Foreground="{DynamicResource TextSecondaryBrush}" />
+          </StackPanel>
+        </DataTemplate>
+      </ListBox.ItemTemplate>
+    </ListBox>
+
+    <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,8,0,0" Spacing="8">
+      <Button Content="加入队列" Command="{Binding EnqueueCommand}" Width="100" Padding="0,4" />
+      <Button Content="开始下载队列" Command="{Binding StartQueueCommand}" Width="120" Padding="0,4"
+              Classes="accent" />
+      <TextBlock Text="{Binding StatusMessage}" VerticalAlignment="Center" Margin="12,0,0,0"
+                 Foreground="{DynamicResource TextSecondaryBrush}" />
+      <Button Content="清空已完成" Command="{Binding ClearCompletedCommand}" Width="100" Padding="0,4" />
+    </StackPanel>
+
+    <ListBox Grid.Row="4" ItemsSource="{Binding Queue}" Margin="0,8,0,0"
+             Background="{DynamicResource ControlBackground}"
+             Foreground="{DynamicResource TextPrimaryBrush}"
+             BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
+      <ListBox.ItemTemplate>
+        <DataTemplate>
+          <Grid ColumnDefinitions="*,Auto,Auto,Auto" Margin="2">
+            <StackPanel Grid.Column="0">
+              <TextBlock FontWeight="Bold" Text="{Binding Title}"
+                         Foreground="{DynamicResource TextPrimaryBrush}" />
+              <Grid ColumnDefinitions="*,Auto" Margin="0,4,0,0">
+                <ProgressBar Grid.Column="0" Minimum="0" Maximum="100"
+                             Value="{Binding Progress}" Height="6" />
+                <TextBlock Grid.Column="1" Text="{Binding Status}" Margin="8,0,0,0"
+                           VerticalAlignment="Center" Opacity="0.8"
+                           Foreground="{DynamicResource TextSecondaryBrush}" />
+              </Grid>
+            </StackPanel>
+            <Button Grid.Column="1" Content="暂停"
+                    Command="{Binding $parent[UserControl].DataContext.PauseItemCommand}"
+                    CommandParameter="{Binding}" Padding="2" Margin="4,0" />
+            <Button Grid.Column="2" Content="取消"
+                    Command="{Binding $parent[UserControl].DataContext.CancelItemCommand}"
+                    CommandParameter="{Binding}" Padding="2" />
+            <Button Grid.Column="3" Content="移除"
+                    Command="{Binding $parent[UserControl].DataContext.RemoveItemCommand}"
+                    CommandParameter="{Binding}" Padding="2" />
+          </Grid>
+        </DataTemplate>
+      </ListBox.ItemTemplate>
+    </ListBox>
+  </Grid>
+</UserControl>

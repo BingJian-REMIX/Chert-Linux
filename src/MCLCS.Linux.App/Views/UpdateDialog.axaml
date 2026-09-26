@@ -1,0 +1,61 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:MCLCS.Linux.App.ViewModels"
+        x:Class="MCLCS.Linux.App.Views.UpdateDialog"
+        Title="发现新版本" Width="480" Height="440"
+        WindowStartupLocation="CenterOwner" CanResize="False" ShowInTaskbar="False"
+        Background="Transparent">
+  <Grid>
+    <!-- 半透明遮罩 -->
+    <Rectangle Fill="#80000000"/>
+
+    <!-- 居中卡片 -->
+    <Border x:Name="CardBorder" Width="460" MaxHeight="440" VerticalAlignment="Center" HorizontalAlignment="Center"
+            Background="{DynamicResource ControlBackground}" CornerRadius="14" Padding="22"
+            BorderBrush="{DynamicResource AccentBrush}" BorderThickness="1"
+            BoxShadow="{DynamicResource ModalShadow}">
+      <DockPanel LastChildFill="True">
+        <!-- 紧急更新横幅（默认隐藏，status=emgent 时由代码显示并配红边） -->
+        <Border x:Name="EmergencyBanner" DockPanel.Dock="Top" IsVisible="False"
+                Background="#C0392B" CornerRadius="8" Padding="10,8" Margin="0,0,0,12">
+          <TextBlock Foreground="White" FontSize="13" FontWeight="Bold"
+                     Text="紧急更新：此版本含重要修复或安全更新，建议立即安装"/>
+        </Border>
+
+        <TextBlock x:Name="TitleText" DockPanel.Dock="Top" FontSize="19" FontWeight="Bold"
+                   Foreground="{DynamicResource PrimaryForeground}" Text="发现新版本"/>
+        <TextBlock x:Name="SubtitleText" DockPanel.Dock="Top" Margin="0,4,0,0" FontSize="12"
+                   Foreground="{DynamicResource SecondaryForeground}" Text=""/>
+
+        <!-- 下载进度（默认隐藏，点击「下载更新」后显示） -->
+        <StackPanel DockPanel.Dock="Bottom" x:Name="ProgressPanel" IsVisible="False" Margin="0,12,0,0">
+          <TextBlock x:Name="StatusText" FontSize="12" Foreground="{DynamicResource SecondaryForeground}"
+                     Text="准备下载…" Margin="0,0,0,6"/>
+          <ProgressBar x:Name="ProgressBar" Height="10" Minimum="0" Maximum="1" Value="0"
+                       Foreground="{DynamicResource AccentBrush}" Background="{DynamicResource ControlBackground}"/>
+        </StackPanel>
+
+        <Grid DockPanel.Dock="Bottom" Margin="0,16,0,0">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="Auto"/>
+            <ColumnDefinition Width="Auto"/>
+          </Grid.ColumnDefinitions>
+          <Button Grid.Column="1" x:Name="LaterButton" Content="稍后" Width="84" Padding="0,8"
+                  Margin="0,0,10,0" Background="{DynamicResource ControlBackground}"
+                  Foreground="{DynamicResource PrimaryForeground}" BorderThickness="1"
+                  BorderBrush="{DynamicResource ControlBorder}" Click="Later_Click"/>
+          <Button Grid.Column="2" x:Name="DownloadButton" Content="下载更新" Width="104" Padding="0,8"
+                  Background="{DynamicResource AccentBrush}" Foreground="White" BorderThickness="0"
+                  Click="Download_Click"/>
+        </Grid>
+
+        <!-- 更新日志（Markdown 文本，可滚动） -->
+        <ScrollViewer Margin="0,14,0,0" VerticalScrollBarVisibility="Auto" MaxHeight="220">
+          <TextBlock x:Name="ChangelogBox" FontSize="13" TextWrapping="Wrap"
+                     Foreground="{DynamicResource PrimaryForeground}"/>
+        </ScrollViewer>
+      </DockPanel>
+    </Border>
+  </Grid>
+</Window>

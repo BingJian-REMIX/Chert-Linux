@@ -1,0 +1,62 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:MCLCS.Linux.App.ViewModels"
+        x:Class="MCLCS.Linux.App.Views.SaveCompatPromptView"
+        Title="存档兼容性提示"
+        Width="520" MaxHeight="540" SizeToContent="Height"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False"
+        Background="{DynamicResource WindowBackground}">
+  <Window.Styles>
+    <Style Selector="Window">
+      <Setter Property="Padding" Value="22" />
+    </Style>
+  </Window.Styles>
+
+  <StackPanel Spacing="14">
+    <StackPanel Spacing="6">
+      <TextBlock Text="存档兼容性提示" FontSize="18" FontWeight="Bold"
+                 Foreground="{DynamicResource TextPrimaryBrush}" />
+      <TextBlock Text="{Binding StatusMessage}" TextWrapping="Wrap"
+                 Foreground="{DynamicResource TextSecondaryBrush}" />
+    </StackPanel>
+
+    <Border Background="{DynamicResource ControlBackground}" CornerRadius="10"
+            BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
+      <ScrollViewer MaxHeight="240" VerticalScrollBarVisibility="Auto">
+        <ItemsControl ItemsSource="{Binding Incompatible}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate>
+              <Grid ColumnDefinitions="6,*,Auto" Margin="10,8">
+                <Rectangle Grid.Column="0" VerticalAlignment="Stretch"
+                           Fill="{Binding SeverityBrush}" RadiusX="3" RadiusY="3" />
+                <StackPanel Grid.Column="1" Margin="10,0,0,0" Spacing="3">
+                  <TextBlock Text="{Binding SaveName}" FontWeight="SemiBold"
+                             Foreground="{DynamicResource TextPrimaryBrush}" />
+                  <TextBlock Text="{Binding CompatText}" TextWrapping="Wrap" FontSize="12"
+                             Foreground="{DynamicResource TextSecondaryBrush}" />
+                  <TextBlock Text="{Binding CurrentVersion}" FontSize="11" Opacity="0.7"
+                             Foreground="{DynamicResource TextSecondaryBrush}" />
+                </StackPanel>
+              </Grid>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </ScrollViewer>
+    </Border>
+
+    <TextBlock Text="{Binding StatusMessage}" IsVisible="{Binding IsBusy}"
+               Foreground="{DynamicResource AccentBrush}" />
+
+    <ProgressBar IsIndeterminate="True" IsVisible="{Binding IsBusy}"
+                 Height="4" Foreground="{DynamicResource AccentBrush}" />
+
+    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10">
+      <Button Content="降级并继续" Command="{Binding DowngradeAllCommand}"
+              Classes="accent" IsEnabled="{Binding !IsBusy}" />
+      <Button Content="忽略并继续" Command="{Binding IgnoreCommand}"
+              IsEnabled="{Binding !IsBusy}" />
+      <Button Content="安装版本" Command="{Binding InstallVersionCommand}" />
+    </StackPanel>
+  </StackPanel>
+</Window>

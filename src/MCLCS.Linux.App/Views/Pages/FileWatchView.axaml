@@ -18,7 +18,7 @@
                 IsEnabled="{Binding !IsBusy}" HorizontalAlignment="Left"/>
         <Button Classes="modal-btn ghost" Content="标记为已知" Command="{Binding ResetBaselineCommand}"
                 IsEnabled="{Binding !IsBusy}" HorizontalAlignment="Left"/>
-        <ToggleSwitch IsChecked="{Binding FileWatchEnabled}" Content="启用文件监控"
+        <ToggleSwitch IsChecked="{Binding FileWatchEnabled}" Content="{Binding Source='tool.filewatch', Converter={StaticResource KeyToText}}"
                       VerticalAlignment="Center" Margin="8,0,0,0"/>
       </StackPanel>
 

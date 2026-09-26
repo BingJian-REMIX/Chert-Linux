@@ -8,10 +8,11 @@
         <fluent:FluentTheme />
 
         <!-- 全局隐式控件样式：圆角 + 主题色描边悬停（对齐 WPF Controls.xaml 设计语言）-->
-        <!-- 全局 TextBlock 兜底：未显式设置前景的文字统一走主题主前景（对齐 WPF 暗色文字可读性）。
-             显式设置 Foreground 的控件不受影响（局部属性优先于样式）。-->
+        <!-- 全局 TextBlock 兜底：未显式设置前景/字号的文字统一走主题主前景与基准字号（对齐 WPF 暗色文字可读性 + 字体缩放 bug #10）。
+             显式设置 Foreground / FontSize 的控件不受影响（局部属性优先于样式）。-->
         <Style Selector="TextBlock">
             <Setter Property="Foreground" Value="{DynamicResource PrimaryForeground}"/>
+            <Setter Property="FontSize" Value="{DynamicResource BaseFontSize}"/>
         </Style>
 
         <!-- 复选/单选/开关：内容文字同步主题主前景，避免 Fluent 默认色在工具页渐隐背景上亮度异常 -->
@@ -185,6 +186,7 @@
             <Setter Property="TextWrapping" Value="Wrap"/>
             <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
         </Style>
+
     </Application.Styles>
 
     <!-- 暗色配色板：对齐 MCLCS-WPF 的 DarkTheme.xaml / Palette.xaml -->
@@ -213,6 +215,7 @@
         <conv:SourceToDetailTextConverter x:Key="SourceToDetailText"/>
         <conv:SourceNotMinecraftConverter x:Key="SourceNotMinecraft"/>
         <conv:StringEqualsConverter x:Key="StringEquals"/>
+        <conv:StringNotEqualsConverter x:Key="StringNotEquals"/>
         <SolidColorBrush x:Key="WindowBackground" Color="#0F1115"/>
         <SolidColorBrush x:Key="ControlBackground" Color="#1A1D24"/>
         <SolidColorBrush x:Key="ControlBorder" Color="#2A2F3A"/>
@@ -244,6 +247,67 @@
         <SolidColorBrush x:Key="InputFocusBorder" Color="#3B82F6"/>
 
         <SolidColorBrush x:Key="ProgressBackground" Color="#2A2F3A"/>
+
+        <!-- ===== 字体缩放基准（对齐 WPF Controls.xaml BaseFontSize，bug #10） ===== -->
+        <x:Double x:Key="BaseFontSize">13</x:Double>
+
+        <!-- ===== 语义前景/强调（补齐 WPF DarkTheme 缺失键） ===== -->
+        <SolidColorBrush x:Key="AccentForeground" Color="#FFFFFF"/>
+        <SolidColorBrush x:Key="AccentHoverBrush" Color="#2B6FE0"/>
+
+        <!-- 按钮语义键（WPF Controls 有、Linux 缺；隐式 Button 样式已对齐外观） -->
+        <SolidColorBrush x:Key="ButtonBackground" Color="#3B82F6"/>
+        <SolidColorBrush x:Key="ButtonForeground" Color="#FFFFFF"/>
+        <SolidColorBrush x:Key="ButtonHoverBackground" Color="#2B6FE0"/>
+        <SolidColorBrush x:Key="ButtonDisabledBackground" Color="#3A3F4A"/>
+
+        <!-- 输入前景（WPF 有、Linux 缺） -->
+        <SolidColorBrush x:Key="InputForeground" Color="#E6E6E6"/>
+
+        <!-- ListView（补齐 WPF DarkTheme 键） -->
+        <SolidColorBrush x:Key="ListViewBackground" Color="#14161C"/>
+        <SolidColorBrush x:Key="ListViewHeaderBackground" Color="#1E2128"/>
+        <SolidColorBrush x:Key="ListViewBorder" Color="#2A2F3A"/>
+
+        <!-- 进度条前景（WPF 有、Linux 缺） -->
+        <SolidColorBrush x:Key="ProgressForeground" Color="#3B82F6"/>
+
+        <!-- TabControl 基底（WPF DarkTheme 键，供原生 TabControl 主题引用） -->
+        <SolidColorBrush x:Key="TabBackground" Color="#0F1115"/>
+        <SolidColorBrush x:Key="TabItemBackground" Color="#1A1D24"/>
+        <SolidColorBrush x:Key="TabItemSelectedBackground" Color="#252830"/>
+        <SolidColorBrush x:Key="TabItemHoverBackground" Color="#1E2128"/>
+
+        <!-- 开关轨道关闭态（WPF Controls 用） -->
+        <SolidColorBrush x:Key="ToggleOffBrush" Color="#3A3F4A"/>
+
+        <!-- 模态遮罩（WPF 名为 ModalScrimBrush，Linux 现有 ScrimBrush；补齐别名） -->
+        <SolidColorBrush x:Key="ModalScrimBrush" Color="#80000000"/>
+
+        <!-- ===== 四色索引贴调色板（对齐 WPF Palette.xaml，规格 1.2/2.4） =====
+             每色四档：实色 / 暗化0.7 / 提亮1.12 / 下划线1.45。运行时可由 MainWindow 后台按当前主标签覆写。 -->
+        <SolidColorBrush x:Key="TabGameBrush" Color="#4CAF50"/>
+        <SolidColorBrush x:Key="TabGameDimBrush" Color="#357B38"/>
+        <SolidColorBrush x:Key="TabGameActiveBrush" Color="#55C45A"/>
+        <SolidColorBrush x:Key="TabGameUnderlineBrush" Color="#6EFE74"/>
+        <SolidColorBrush x:Key="TabDownloadBrush" Color="#2196F3"/>
+        <SolidColorBrush x:Key="TabDownloadDimBrush" Color="#1769AA"/>
+        <SolidColorBrush x:Key="TabDownloadActiveBrush" Color="#25A8FF"/>
+        <SolidColorBrush x:Key="TabDownloadUnderlineBrush" Color="#30DAFF"/>
+        <SolidColorBrush x:Key="TabToolboxBrush" Color="#FF9800"/>
+        <SolidColorBrush x:Key="TabToolboxDimBrush" Color="#B36A00"/>
+        <SolidColorBrush x:Key="TabToolboxActiveBrush" Color="#FFAA00"/>
+        <SolidColorBrush x:Key="TabToolboxUnderlineBrush" Color="#FFDC00"/>
+        <SolidColorBrush x:Key="TabSettingsBrush" Color="#607D8B"/>
+        <SolidColorBrush x:Key="TabSettingsDimBrush" Color="#435861"/>
+        <SolidColorBrush x:Key="TabSettingsActiveBrush" Color="#6C8C9C"/>
+        <SolidColorBrush x:Key="TabSettingsUnderlineBrush" Color="#8BB5CA"/>
+        <!-- 随当前主标签实时覆写的语义键 -->
+        <SolidColorBrush x:Key="TitleBarBrush" Color="#4CAF50"/>
+        <SolidColorBrush x:Key="SidebarIndicatorBrush" Color="#4CAF50"/>
+        <SolidColorBrush x:Key="TabForegroundBrush" Color="#FFFFFF"/>
+
+        <!-- 控件样式类已统一置于 Application.Styles（类选择器 + Classes= 应用） -->
 
     </Application.Resources>
 </Application>

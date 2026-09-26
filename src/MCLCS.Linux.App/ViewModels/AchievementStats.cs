@@ -24,6 +24,9 @@ public class AchievementStats
     public string Summary => Total == 0
         ? "无成就数据"
         : $"达成 {Completed}/{Total}" + (Purple > 0 ? $"（{Purple} 紫色挑战）" : "");
+
+    /// <summary>紫色挑战数的人类可读文本（供成就展示页直接绑定）。</summary>
+    public string PurpleText => $"紫色 {Purple}";
 }
 
 /// <summary>

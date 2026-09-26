@@ -61,13 +61,22 @@ public static class ClasspathBuilder
         foreach (var lib in merged.Libraries)
         {
             if (lib.Natives is null) continue;
+            if (!RuleEvaluator.IsAllowed(lib.Rules, osName)) continue;
             if (!lib.Natives.TryGetValue(osName, out var classifier)) continue;
-            if (lib.Downloads?.Classifiers is null) continue;
-            if (!lib.Downloads.Classifiers.TryGetValue(classifier, out var info) || info is null) continue;
 
-            var jarPath = info.Path is not null
-                ? Path.Combine(gameRoot, "libraries", info.Path)
-                : Path.Combine(gameRoot, "libraries", lib.Coordinate.LocalPath(classifier));
+            // 优先取 downloads.classifiers 中的真实路径；缺失时用 Maven 坐标推断本地 jar 路径，
+            // 兼容其他启动器写出的旧格式 JSON（只有 name、没有 downloads.classifiers）。
+            string jarPath;
+            if (lib.Downloads?.Classifiers is not null
+                && lib.Downloads.Classifiers.TryGetValue(classifier, out var info)
+                && info is not null && info.Path is not null)
+            {
+                jarPath = Path.Combine(gameRoot, "libraries", info.Path);
+            }
+            else
+            {
+                jarPath = Path.Combine(gameRoot, "libraries", lib.Coordinate.LocalPath(classifier));
+            }
 
             list.Add(new NativeEntry
             {

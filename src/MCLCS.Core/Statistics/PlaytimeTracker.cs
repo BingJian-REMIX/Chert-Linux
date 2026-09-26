@@ -27,9 +27,13 @@ public static class PlaytimeTracker
 
     public static PlayStats Load(string gameRoot)
     {
-        var p = Path(gameRoot);
-        if (!File.Exists(p)) return new PlayStats();
-        try { return JsonSerializer.Deserialize<PlayStats>(File.ReadAllText(p)) ?? new(); }
+        if (string.IsNullOrWhiteSpace(gameRoot)) return new PlayStats();
+        try
+        {
+            var p = Path(gameRoot);
+            if (!File.Exists(p)) return new PlayStats();
+            return JsonSerializer.Deserialize<PlayStats>(File.ReadAllText(p)) ?? new();
+        }
         catch { return new PlayStats(); }
     }
 

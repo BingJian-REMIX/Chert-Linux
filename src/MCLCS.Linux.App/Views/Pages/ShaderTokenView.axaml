@@ -1,0 +1,88 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:MCLCS.Linux.App.ViewModels"
+             x:Class="MCLCS.Linux.App.Views.Pages.ShaderTokenView">
+  <Grid Margin="12">
+    <Grid.ColumnDefinitions>
+      <ColumnDefinition Width="*"/>
+      <ColumnDefinition Width="220"/>
+    </Grid.ColumnDefinitions>
+
+    <StackPanel Grid.Column="0" Margin="0,0,8,0">
+      <TextBlock Text="光影配置参数" FontWeight="Bold" Margin="0,0,0,6"/>
+      <WrapPanel Margin="0,0,0,6">
+        <Button Content="+ 添加参数" Command="{Binding AddParamCommand}" Width="90" Padding="0,4"/>
+        <Button Content="复制 Token" Click="CopyFull_OnClick" Width="80" Padding="0,4" Margin="4,0,0,0"/>
+      </WrapPanel>
+
+      <ListBox ItemsSource="{Binding Params}"
+               Background="{DynamicResource InputBackground}" BorderBrush="{DynamicResource InputBorder}">
+        <ListBox.ItemTemplate>
+          <DataTemplate>
+            <Grid Margin="0,2">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="120"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+              </Grid.ColumnDefinitions>
+              <TextBox Grid.Column="0" Text="{Binding ParamId}" Margin="0,0,4,0"
+                       Background="{DynamicResource InputBackground}" Foreground="{DynamicResource InputForeground}"
+                       BorderBrush="{DynamicResource InputBorder}" ToolTip.Tip="参数ID（如shadowRes）"/>
+              <TextBox Grid.Column="1" Text="{Binding ParamValue}"
+                       Background="{DynamicResource InputBackground}" Foreground="{DynamicResource InputForeground}"
+                       BorderBrush="{DynamicResource InputBorder}" ToolTip.Tip="参数值（如2048）"/>
+              <Button Grid.Column="2" Content="✕" Width="24" Padding="0" Margin="4,0,0,0"
+                      Foreground="#E74C3C"
+                      Command="{Binding DataContext.RemoveParamCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
+                      CommandParameter="{Binding}"/>
+            </Grid>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+
+      <Border Background="{DynamicResource ControlBackground}" CornerRadius="6" Padding="10,6" Margin="0,8,0,0">
+        <StackPanel>
+          <TextBlock Text="完整 Token" FontSize="10" Foreground="{DynamicResource SecondaryForeground}"/>
+          <TextBlock Text="{Binding FullToken}" FontSize="12" FontFamily="Consolas"
+                     Foreground="{DynamicResource AccentBrush}" TextWrapping="Wrap"/>
+        </StackPanel>
+      </Border>
+    </StackPanel>
+
+    <StackPanel Grid.Column="1">
+      <TextBlock Text="保存" FontWeight="Bold" Margin="0,0,0,4"/>
+      <TextBox Text="{Binding TokenName}" Padding="4,2"
+               Background="{DynamicResource InputBackground}" Foreground="{DynamicResource InputForeground}"
+               BorderBrush="{DynamicResource InputBorder}"/>
+      <Button Content="保存" Command="{Binding SaveCommand}" Width="80" Padding="0,4"
+              Classes="primary" Margin="0,4,0,0"/>
+
+      <TextBlock Text="导入 Token" FontWeight="Bold" Margin="0,16,0,4"/>
+      <TextBox Text="{Binding ImportToken}" Padding="4,2" Height="48"
+               TextWrapping="Wrap" Background="{DynamicResource InputBackground}"
+               Foreground="{DynamicResource InputForeground}" BorderBrush="{DynamicResource InputBorder}"/>
+      <Button Content="从 Token 解析" Command="{Binding ImportCommand}" Width="100" Padding="0,4"
+              Classes="primary" Margin="0,4,0,0"/>
+
+      <TextBlock Text="已保存" FontWeight="Bold" Margin="0,16,0,4"/>
+      <ListBox ItemsSource="{Binding SavedNames}" Background="{DynamicResource ControlBackground}"
+               BorderBrush="{DynamicResource ControlBorder}" MaxHeight="120">
+        <ListBox.ItemTemplate>
+          <DataTemplate>
+            <Grid>
+              <TextBlock Text="{Binding}" VerticalAlignment="Center"/>
+              <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Content="载入" Width="48" Padding="0,2"
+                        Command="{Binding DataContext.LoadCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
+                        CommandParameter="{Binding}"/>
+                <Button Content="✕" Width="24" Padding="0" Margin="4,0,0,0" Foreground="#E74C3C"
+                        Command="{Binding DataContext.DeleteCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
+                        CommandParameter="{Binding}"/>
+              </StackPanel>
+            </Grid>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+    </StackPanel>
+  </Grid>
+</UserControl>

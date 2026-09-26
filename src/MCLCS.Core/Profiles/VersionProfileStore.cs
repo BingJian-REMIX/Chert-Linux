@@ -21,7 +21,13 @@ public static class VersionProfileStore
     public static VersionProfile Load(string gameRoot, string id)
     {
         var path = ProfilePath(gameRoot, id);
-        if (!File.Exists(path)) return new VersionProfile();
+        if (!File.Exists(path))
+        {
+            // bug2.txt #9：新建版本（尚无 profile.json）默认套用全局「新建版本默认隔离」设置
+            var def = new VersionProfile();
+            try { def.Isolation = ProfileStore.Load(GameConstants.DefaultGameRoot).DefaultVersionIsolation; } catch { }
+            return def;
+        }
         try
         {
             var json = File.ReadAllText(path);
@@ -43,6 +49,14 @@ public static class VersionProfileStore
         var json = JsonSerializer.Serialize(profile, new JsonSerializerOptions { WriteIndented = true });
         File.WriteAllText(path, json);
     }
+
+    /// <summary>
+    /// 该版本是否<b>已显式保存过</b>每版本配置（<c>versions/&lt;id&gt;/profile.json</c> 存在）。
+    /// 仅在用户手动保存过版本设置后才用覆盖层决定工作目录，
+    /// 否则沿用 <see cref="VersionIsolation"/> 的 .mclcs-isolated 标记行为，
+    /// 避免把既有共享目录的老版本静默搬到 versions/&lt;id&gt;。
+    /// </summary>
+    public static bool HasProfile(string gameRoot, string id) => File.Exists(ProfilePath(gameRoot, id));
 
     /// <summary>该版本是否处于锁定状态（锁定后阻止改写其文件，如安装加载器 / 增删 Mod）。</summary>
     public static bool IsLocked(string gameRoot, string id)

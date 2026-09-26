@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using MCLCS.Core.Localization;
 
 namespace MCLCS.Linux.App.Views;
 
@@ -8,5 +9,6 @@ public partial class FileWatchWindow : Window
     public FileWatchWindow()
     {
         InitializeComponent();
+        Title = LocaleManager.T("tool.filewatch");
     }
 }

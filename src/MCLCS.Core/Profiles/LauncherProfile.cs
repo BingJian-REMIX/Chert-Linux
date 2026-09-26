@@ -119,6 +119,10 @@ public class LauncherProfile
     [JsonPropertyName("highDpiIcons")]
     public bool HighDpiIcons { get; set; }
 
+    /// <summary>显示控件边框：开启后按钮/输入框/卡片/面板等描边可见；关闭则透明隐藏（设置 → 外观，默认开启）。</summary>
+    [JsonPropertyName("showControlBorders")]
+    public bool ShowControlBorders { get; set; } = true;
+
     // ---- 关于 / 更新 ----
 
     [JsonPropertyName("autoUpdateCheck")]
@@ -128,6 +132,12 @@ public class LauncherProfile
 
     [JsonPropertyName("ai")]
     public AiConfig Ai { get; set; } = new();
+
+    // ---- 账号（设置 → 账号）----
+
+    /// <summary>Microsoft OAuth 应用的 client_id（可选）。留空时使用内置默认 client_id；设备代码流无需配置任何回跳地址。</summary>
+    [JsonPropertyName("microsoftOAuthClientId")]
+    public string MicrosoftOAuthClientId { get; set; } = "";
 
     // ---- v2.0 新增 ----
 
@@ -182,6 +192,26 @@ public class LauncherProfile
     /// <summary>音乐播放器音量（0-100）。</summary>
     [JsonPropertyName("musicVolume")]
     public int MusicVolume { get; set; } = 60;
+
+    /// <summary>启动时自动断点续播：恢复上次停下的曲目与位置。</summary>
+    [JsonPropertyName("musicResumeOnLaunch")]
+    public bool MusicResumeOnLaunch { get; set; }
+
+    /// <summary>断点续播：上次播放的本地曲目路径（空表示无）。</summary>
+    [JsonPropertyName("musicLastTrack")]
+    public string MusicLastTrack { get; set; } = "";
+
+    /// <summary>断点续播：上次停下的位置（秒）。</summary>
+    [JsonPropertyName("musicLastPosition")]
+    public double MusicLastPosition { get; set; }
+
+    /// <summary>音乐播放器：上次打开的本地音乐文件夹（空表示无，下次从默认位置打开）。</summary>
+    [JsonPropertyName("musicLastFolder")]
+    public string MusicLastFolder { get; set; } = "";
+
+    /// <summary>新建版本的默认隔离模式（通用设置「版本隔离」默认项，bug2.txt #9）。</summary>
+    [JsonPropertyName("defaultVersionIsolation")]
+    public IsolationMode DefaultVersionIsolation { get; set; } = IsolationMode.Auto;
 }
 
 /// <summary>缺失 Mod 前置依赖的自动安装策略。</summary>

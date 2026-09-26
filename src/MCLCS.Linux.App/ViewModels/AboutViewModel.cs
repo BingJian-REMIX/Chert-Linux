@@ -8,7 +8,7 @@ namespace MCLCS.Linux.App.ViewModels;
 /// </summary>
 public class AboutViewModel : ObservableObject
 {
-    public string AppName => "MCLCS";
+    public string AppName => "朗希夏";
     public string Version => "0.1.0 (Linux 移植)";
     public string Tagline => "跨平台 Minecraft 启动器与工具集";
     public string Description =>

@@ -29,6 +29,15 @@
           <Button Content="添加离线账号" Command="{Binding AddOfflineCommand}" Classes="modal-btn primary"/>
         </StackPanel>
 
+        <StackPanel Spacing="8" Margin="0,6,0,0">
+          <Button Content="登录微软账号" Command="{Binding LoginMicrosoftCommand}"
+                  IsEnabled="{Binding !IsMsBusy}" Classes="modal-btn"/>
+          <TextBlock Text="{Binding MsMessage}"
+                     IsVisible="{Binding MsMessage, Converter={StaticResource NonEmptyToVis}}"
+                     Foreground="{DynamicResource SecondaryForeground}" TextWrapping="Wrap"/>
+          <ProgressBar IsIndeterminate="True" Height="4" IsVisible="{Binding IsMsBusy}"/>
+        </StackPanel>
+
         <TextBlock Text="{Binding Status}" Foreground="{DynamicResource SecondaryForeground}" TextWrapping="Wrap"/>
       </StackPanel>
 

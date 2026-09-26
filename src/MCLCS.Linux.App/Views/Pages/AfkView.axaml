@@ -6,8 +6,8 @@
 
   <Grid Margin="18" ColumnDefinitions="*,16,240">
 
-    <!-- 左侧：动作列表 + 编辑 -->
-    <Grid Grid.Column="0" RowDefinitions="Auto,*,Auto,Auto">
+    <!-- 左侧：动作列表 + 编辑 + 运行 -->
+    <Grid Grid.Column="0" RowDefinitions="Auto,*,Auto,Auto,Auto">
 
       <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="6" Margin="0,0,0,6">
         <Button Classes="modal-btn" Content="+ 添加动作" Command="{Binding AddActionCommand}" Width="90" Padding="0,4"/>
@@ -44,22 +44,40 @@
             <TextBlock Text="动作类型：" VerticalAlignment="Center" Width="70"
                        Foreground="{DynamicResource SecondaryForeground}"/>
             <ComboBox SelectedValue="{Binding SelectedAction.ActionType}" SelectedValueBinding="{Binding Tag}"
-                      Width="150" HorizontalAlignment="Left">
-              <ComboBoxItem Content="帧率限制 (F)" Tag="F"/>
-              <ComboBoxItem Content="渲染距离 (D)" Tag="D"/>
-              <ComboBoxItem Content="音量 (V)" Tag="V"/>
-              <ComboBoxItem Content="视角朝向 (L)" Tag="L"/>
-              <ComboBoxItem Content="模拟按键 (K)" Tag="K"/>
-              <ComboBoxItem Content="鼠标连点 (C)" Tag="C"/>
+                      Width="170" HorizontalAlignment="Left">
+              <ComboBoxItem Content="功能键 F (F)" Tag="F"/>
+              <ComboBoxItem Content="延时等待 (D)" Tag="D"/>
+              <ComboBoxItem Content="长按 (L)" Tag="L"/>
+              <ComboBoxItem Content="按键/键码 (K)" Tag="K"/>
+              <ComboBoxItem Content="鼠标连点-左 (C)" Tag="C"/>
+              <ComboBoxItem Content="鼠标连点-右 (R)" Tag="R"/>
+              <ComboBoxItem Content="鼠标移动 (M)" Tag="M"/>
+              <ComboBoxItem Content="滚轮 (S)" Tag="S"/>
+              <ComboBoxItem Content="输入文本 (T)" Tag="T"/>
+              <ComboBoxItem Content="按住保持 (G)" Tag="G"/>
+              <ComboBoxItem Content="松开 (U)" Tag="U"/>
+              <ComboBoxItem Content="随机等待 (J)" Tag="J"/>
+              <ComboBoxItem Content="按键名称 (E)" Tag="E"/>
               <ComboBoxItem Content="循环 (*)" Tag="*"/>
             </ComboBox>
           </StackPanel>
-          <StackPanel Orientation="Horizontal" Spacing="8">
+          <StackPanel Orientation="Horizontal" Spacing="8"
+                      IsVisible="{Binding SelectedAction.ActionType, Converter={StaticResource StringNotEquals}, ConverterParameter=T}">
             <TextBlock Text="参数：" VerticalAlignment="Center" Width="70"
                        Foreground="{DynamicResource SecondaryForeground}"/>
-            <TextBox Text="{Binding SelectedAction.Param}" Width="160" Padding="4,2"
+            <TextBox Text="{Binding SelectedAction.Param}" Width="170" Padding="4,2"
                      Background="{DynamicResource InputBackground}"
-                     BorderBrush="{DynamicResource InputBorder}"/>
+                     BorderBrush="{DynamicResource InputBorder}"
+                     Watermark="{Binding SelectedAction.ParamHint}"/>
+          </StackPanel>
+          <StackPanel Orientation="Horizontal" Spacing="8"
+                      IsVisible="{Binding SelectedAction.ActionType, Converter={StaticResource StringEquals}, ConverterParameter=T}">
+            <TextBlock Text="明文：" VerticalAlignment="Center" Width="70"
+                       Foreground="{DynamicResource SecondaryForeground}"/>
+            <TextBox Text="{Binding SelectedAction.PlainText}" Width="260" Padding="4,2"
+                     Background="{DynamicResource InputBackground}"
+                     BorderBrush="{DynamicResource InputBorder}"
+                     Watermark="在此输入文本，自动转 base64"/>
           </StackPanel>
         </StackPanel>
       </Border>
@@ -74,6 +92,24 @@
                      Foreground="{DynamicResource AccentBrush}" TextTrimming="CharacterEllipsis" MaxWidth="420"/>
           <Button Classes="modal-btn" Content="复制" Command="{Binding CopyTokenCommand}"
                   Width="56" Padding="0,2" VerticalAlignment="Center"/>
+        </StackPanel>
+      </Border>
+
+      <!-- 运行 / 停止 -->
+      <Border Grid.Row="4" Background="{DynamicResource ControlBackground}" CornerRadius="6"
+              Padding="10,8" Margin="0,6,0,0">
+        <StackPanel Spacing="6">
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <Button Classes="modal-btn primary" Content="▶ 运行" Command="{Binding RunCommand}"
+                    Width="80" Padding="0,4"/>
+            <Button Classes="modal-btn danger" Content="■ 停止" Command="{Binding StopCommand}"
+                    Width="80" Padding="0,4"/>
+            <TextBlock Text="{Binding TargetText}" VerticalAlignment="Center" FontSize="11"
+                       Foreground="{DynamicResource SecondaryForeground}"/>
+          </StackPanel>
+          <TextBlock Text="{Binding RunStatus}" FontSize="11" VerticalAlignment="Center"
+                     Foreground="{DynamicResource SecondaryForeground}"
+                     TextWrapping="Wrap"/>
         </StackPanel>
       </Border>
     </Grid>
