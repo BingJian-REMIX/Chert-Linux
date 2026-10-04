@@ -9,11 +9,12 @@ using MCLCS.Linux.App.ViewModels;
 
 namespace MCLCS.Linux.App.Converters;
 
-/// <summary>索引贴宽度：展开 130 / 折叠 56（对齐 WPF MainTabs.ExpandedWidth/CollapsedWidth）。</summary>
+/// <summary>索引贴宽度：展开 130 / 折叠 56（严格对齐 WPF MainTabs.ExpandedWidth/CollapsedWidth）。
+/// 原为 142/60，比 WPF 宽 12/4px，导致同一屏内索引贴整体比 Windows 端宽出一截。</summary>
 public class TabWidthConverter : IValueConverter
 {
     public object? Convert(object? value, Type? targetType, object? parameter, CultureInfo? culture)
-        => value is true ? 142.0 : 60.0;
+        => value is true ? 130.0 : 56.0;
 
     public object? ConvertBack(object? value, Type? targetType, object? parameter, CultureInfo? culture)
         => null;
@@ -46,14 +47,29 @@ public class TabUnderlineBrushConverter : IValueConverter
 /// </summary>
 public class TabBackgroundConverter : IMultiValueConverter
 {
+    /// <summary>
+    /// 底色取值优先级：<b>选中 → 悬浮 → 折叠</b>。
+    /// 选中取主题色提亮 1.12（ActiveColorOf），悬浮取提亮 1.2（对齐 WPF <c>Brighten(solid,1.2)</c>），
+    /// 折叠取暗化 0.7（DimColorOf）。
+    /// hover 参与多值绑定后，底色变化由 <c>BrushTransition</c> 平滑过渡（此前在
+    /// <c>Tab_PointerEntered</c> 里直接赋 <c>btn.Background</c>，既无动画又会覆盖绑定，
+    /// 导致之后切换选中态时底色不再刷新）。
+    /// </summary>
     public object? Convert(IList<object?> values, Type? targetType, object? parameter, CultureInfo? culture)
     {
-        if (values.Count < 2 || values[0] is not bool isSelected || values[1] is not MainTabKind kind)
+        if (values.Count < 2 || values[1] is not MainTabKind kind)
             return new SolidColorBrush(Colors.Gray);
+
+        var isSelected = values[0] is bool s && s;
+        var isHovered = values.Count >= 3 && values[2] is bool h && h;
+
         var theme = MainViewModel.Instance?.Theme;
-        var hex = theme is not null
-            ? (isSelected ? theme.ActiveColorOf(kind) : theme.DimColorOf(kind))
-            : "#888888";
+        if (theme is null)
+            return new SolidColorBrush(Colors.Gray);
+
+        var hex = isSelected ? theme.ActiveColorOf(kind)
+                 : isHovered ? TabThemeConfig.Brighten(theme.ColorOf(kind), 1.2)
+                 : theme.DimColorOf(kind);
         return HexToBrushConverter.ToBrush(hex);
     }
 }

@@ -96,26 +96,53 @@
                     Width="{Binding IsExpanded, Converter={StaticResource TabWidth}}"
                     Height="40" Margin="0" Padding="0" BorderThickness="0"
                     CornerRadius="{Binding, Converter={StaticResource TabCorner}}"
+                    ClipToBounds="True"
                     Cursor="Hand">
               <Button.Background>
                 <MultiBinding Converter="{StaticResource TabBg}">
                   <Binding Path="IsSelected"/>
                   <Binding Path="Kind"/>
+                  <Binding Path="IsHovered"/>
                 </MultiBinding>
               </Button.Background>
               <Button.Transitions>
                 <Transitions>
-                  <DoubleTransition Property="Width" Duration="{StaticResource MotionNormal}"/>
+                  <!-- 展开/收起宽度：悬浮 250ms、选中切换 200ms（WPF OnTabHover 硬编码 250），
+                       统一取 MotionSlow，观感平滑一致 -->
+                  <DoubleTransition Property="Width" Duration="{StaticResource MotionSlow}"/>
+                  <!-- 与左邻的重叠外边距随展开变化（左邻展开时 20→10）。
+                       Avalonia 不支持 Property="Margin.Left" 子属性语法，只能对 Margin 整体插值；
+                       因本处只有 Left 变化，整体插值效果等同。 -->
+                  <DoubleTransition Property="Margin" Duration="{StaticResource MotionNormal}"/>
+                  <!-- 底色提亮/还原：WPF HoverMs=150 -->
                   <BrushTransition Property="Background" Duration="{StaticResource MotionFast}"/>
                 </Transitions>
               </Button.Transitions>
               <Grid>
+                <!-- 文字：不用 IsVisible（那是硬切、会让淡出失效），改为 Opacity 0↔1 过渡
+                     （对齐 WPF RevealTitle 的「先落终值再动画」+ FillBehavior.Stop）。
+                     收起态靠父 Button 的 ClipToBounds 裁掉溢出文字，不影响观感。 -->
                 <TextBlock Text="{Binding DisplayName}" VerticalAlignment="Center"
                            HorizontalAlignment="Center" FontWeight="SemiBold" FontSize="14"
-                           Foreground="White" IsVisible="{Binding IsExpanded}"/>
+                           Foreground="White"
+                           Opacity="{Binding TextOpacity}">
+                  <TextBlock.Transitions>
+                    <Transitions>
+                      <DoubleTransition Property="Opacity" Duration="{StaticResource MotionSlow}"/>
+                    </Transitions>
+                  </TextBlock.Transitions>
+                </TextBlock>
+                <!-- 下划线：选中时淡入（对齐 WPF Underline 的 DoubleAnimation）。
+                     同理不用 IsVisible，避免淡入被硬切吃掉。 -->
                 <Rectangle Height="3" VerticalAlignment="Bottom" HorizontalAlignment="Stretch"
                            Fill="{Binding Kind, Converter={StaticResource TabUnderline}}"
-                           IsVisible="{Binding IsSelected}"/>
+                           Opacity="{Binding UnderlineOpacity}">
+                  <Rectangle.Transitions>
+                    <Transitions>
+                      <DoubleTransition Property="Opacity" Duration="{StaticResource MotionNormal}"/>
+                    </Transitions>
+                  </Rectangle.Transitions>
+                </Rectangle>
               </Grid>
             </Button>
           </DataTemplate>

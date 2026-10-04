@@ -7,6 +7,23 @@
     <Application.Styles>
         <fluent:FluentTheme />
 
+        <!-- 全局字体：内嵌 Droid Sans Fallback（精简版）。
+             Linux 桌面常无中文字体，缺字时各控件会各自回退到不同的系统字体，
+             造成首帧字形跳变、同一界面观感不一致；统一指定内嵌字体后中文必现且无回退闪烁。
+             放在 Styles 最前，先于所有控件样式生效；显式设置 FontFamily 的控件不受影响。-->
+        <Style Selector="Window">
+            <Setter Property="FontFamily" Value="avares://MCLCS.Linux.App/Resources/Fonts/DroidSansFallback.ttf#Droid Sans Fallback"/>
+        </Style>
+        <Style Selector="UserControl">
+            <Setter Property="FontFamily" Value="avares://MCLCS.Linux.App/Resources/Fonts/DroidSansFallback.ttf#Droid Sans Fallback"/>
+        </Style>
+        <Style Selector="TextBlock">
+            <Setter Property="FontFamily" Value="avares://MCLCS.Linux.App/Resources/Fonts/DroidSansFallback.ttf#Droid Sans Fallback"/>
+        </Style>
+        <Style Selector="Button">
+            <Setter Property="FontFamily" Value="avares://MCLCS.Linux.App/Resources/Fonts/DroidSansFallback.ttf#Droid Sans Fallback"/>
+        </Style>
+
         <!-- 全局隐式控件样式：圆角 + 主题色描边悬停（对齐 WPF Controls.xaml 设计语言）-->
         <!-- 全局 TextBlock 兜底：未显式设置前景/字号的文字统一走主题主前景与基准字号（对齐 WPF 暗色文字可读性 + 字体缩放 bug #10）。
              显式设置 Foreground / FontSize 的控件不受影响（局部属性优先于样式）。-->

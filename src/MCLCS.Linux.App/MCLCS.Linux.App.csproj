@@ -30,6 +30,10 @@
     <AvaloniaResource Include="Resources\Icons\**\*.png" />
     <!-- 品牌图标（提取自 WPF 的 MCLCS.ico），用作窗口图标与发行包入口图标 -->
     <AvaloniaResource Include="Resources\mclcs.png" />
+    <!-- 中文字体：Droid Sans Fallback（精简版，约 3.4MB / 4 万汉字）。
+         Linux 桌面环境常缺中文字体，缺字时各控件会各自回退到不同字体，
+         导致首帧字形跳变、界面观感不一致；嵌入后全局统一用它，中文必现且无回退闪烁。 -->
+    <AvaloniaResource Include="Resources\Fonts\DroidSansFallback.ttf" />
   </ItemGroup>
 
   <ItemGroup>

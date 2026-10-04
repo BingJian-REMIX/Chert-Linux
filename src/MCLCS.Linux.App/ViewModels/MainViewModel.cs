@@ -398,22 +398,59 @@ public class TabItemViewModel : ObservableObject
             if (SetField(ref _isSelected, value))
             {
                 OnPropertyChanged(nameof(IsExpanded));
+                OnPropertyChanged(nameof(TextOpacity));
+                OnPropertyChanged(nameof(UnderlineOpacity));
+                OnPropertyChanged(nameof(ZIndex));
                 OnPropertyChanged(nameof(Margin));
                 // 右邻项的 Margin 依赖本项 IsExpanded，必须联动刷新
-                var next = MainViewModel.Instance?.TabItems.FirstOrDefault(t => t.Order == Order + 1);
-                next?.OnPropertyChanged(nameof(Margin));
+                NotifyNeighbour();
             }
         }
     }
 
-    /// <summary>是否展开显示文字：选中页（含游戏页）展开显示文字，其余折叠为 56px 色条。</summary>
-    public bool IsExpanded => _isSelected || Def.AlwaysExpanded;
+    private bool _isHovered;
+
+    /// <summary>
+    /// 鼠标悬浮（对齐 WPF <c>OnTabHover</c>）：未选中的贴悬浮时也会展开显示文字。
+    /// 驱动 <see cref="IsExpanded"/>（宽度/文字）、<see cref="ZIndex"/>（抬到邻贴之上）
+    /// 与 <see cref="Margin"/>（左邻展开时重叠从 20 收到 10）。
+    /// </summary>
+    public bool IsHovered
+    {
+        get => _isHovered;
+        set
+        {
+            if (!SetField(ref _isHovered, value)) return;
+            OnPropertyChanged(nameof(IsExpanded));
+            OnPropertyChanged(nameof(TextOpacity));
+            OnPropertyChanged(nameof(ZIndex));
+            OnPropertyChanged(nameof(Margin));
+            NotifyNeighbour();
+        }
+    }
+
+    /// <summary>展开态：选中 / 常驻展开（游戏页）/ 悬浮，三者任一成立即展开。</summary>
+    public bool IsExpanded => _isSelected || Def.AlwaysExpanded || _isHovered;
+
+    /// <summary>
+    /// 文字不透明度：跟随 <see cref="IsExpanded"/> 的 0↔1（配合 XAML DoubleTransition 实现淡入淡出，
+    /// 对齐 WPF <c>RevealTitle</c>）。单独暴露属性而非直接绑 <c>IsExpanded</c>，
+    /// 是为了让过渡有「起止值」可插值——布尔值本身无法参与插值。
+    /// </summary>
+    public double TextOpacity => IsExpanded ? 1d : 0d;
+
+    /// <summary>下划线不透明度：跟随选中态 0↔1（对齐 WPF 下划线 DoubleAnimation 淡入）。</summary>
+    public double UnderlineOpacity => _isSelected ? 1d : 0d;
 
     /// <summary>语言切换时由 VM 调用，强制刷新显示名（DisplayName 依赖当前语言）。</summary>
     public void RaiseDisplayNameChanged() => OnPropertyChanged(nameof(DisplayName));
 
-    /// <summary>Z 序：严格按「左压右」由 Order 决定（Order 越小越高），选中页不置顶。</summary>
-    public int ZIndex => Def.ZIndex;
+    /// <summary>
+    /// Z 序：默认严格按「左压右」由 Order 决定（Order 越小越高）。
+    /// 悬浮或选中时抬到 20（对齐 WPF <c>Panel.SetZIndex(..., 20)</c>），
+    /// 否则展开后会被左侧未选中贴的色块/圆角遮住文字。
+    /// </summary>
+    public int ZIndex => (_isSelected || _isHovered) ? 20 : Def.ZIndex;
 
     /// <summary>与左侧邻居的重叠外边距：左邻展开时 10px，否则 20px（对齐 WPF NeighborExpanded）。</summary>
     public Thickness Margin
@@ -424,6 +461,18 @@ public class TabItemViewModel : ObservableObject
             var prev = MainViewModel.Instance?.TabItems.FirstOrDefault(t => t.Order == Order - 1);
             var overlap = prev?.IsExpanded == true ? 10.0 : 20.0;
             return new Thickness(-overlap, 0, 0, 0);
+        }
+    }
+
+    /// <summary>通知左右邻居刷新 Margin（它们的 Margin 依赖本项 IsExpanded）。</summary>
+    private void NotifyNeighbour()
+    {
+        var items = MainViewModel.Instance?.TabItems;
+        if (items is null) return;
+        foreach (var t in items)
+        {
+            if (t.Order == Order + 1 || t.Order == Order - 1)
+                t.OnPropertyChanged(nameof(Margin));
         }
     }
 

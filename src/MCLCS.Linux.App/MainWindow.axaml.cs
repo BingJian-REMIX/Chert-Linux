@@ -298,23 +298,23 @@ public partial class MainWindow : Window
     }
 
     /// <summary>索引贴悬停：未选中标签提亮 1.2（对齐模板 renderTabs 的 mouseenter brighten(solid,1.2)）。</summary>
+    /// <summary>索引贴悬浮进入（对齐 WPF OnTabHover）：
+    /// 未选中的贴悬浮时展开显示文字、抬到邻贴之上，底色提亮到 1.2 档。
+    /// 这里只改 VM 状态（IsHovered），宽度/文字/底色/Z 序全部由绑定驱动，
+    /// 各自在 XAML 用 Transitions 做平滑过渡；不再直接赋 btn.Background
+    /// （那会覆盖绑定，导致之后切换选中态时底色不再刷新，且没有过渡动画）。</summary>
     private void Tab_PointerEntered(object? sender, PointerEventArgs e)
     {
-        if (sender is not Button { Tag: MainTabKind kind } btn) return;
-        if (btn.DataContext is not TabItemViewModel item || item.IsSelected) return;
-        var hex = TabThemeConfig.Brighten(_vm.Theme.ColorOf(kind), 1.2);
-        btn.Background = HexToBrushConverter.ToBrush(hex);
+        if (sender is not Button { DataContext: TabItemViewModel item }) return;
+        if (item.IsSelected) return;   // 已展开的贴只做亮度过渡，不重复走展开
+        item.IsHovered = true;
     }
 
-    /// <summary>索引贴移出：恢复实色（选中态由背景绑定负责提亮 1.12）。</summary>
+    /// <summary>索引贴移出：收起（IsHovered=false），底色由绑定回落到暗化档 / 选中档。</summary>
     private void Tab_PointerExited(object? sender, PointerEventArgs e)
     {
-        if (sender is not Button { Tag: MainTabKind kind } btn) return;
-        if (btn.DataContext is not TabItemViewModel item) return;
-        var hex = item.IsSelected
-            ? _vm.Theme.ActiveColorOf(kind)
-            : _vm.Theme.ColorOf(kind);
-        btn.Background = HexToBrushConverter.ToBrush(hex);
+        if (sender is not Button { DataContext: TabItemViewModel item }) return;
+        item.IsHovered = false;
     }
 
     private void Sidebar_SelectionChanged(object? sender, SelectionChangedEventArgs e)
