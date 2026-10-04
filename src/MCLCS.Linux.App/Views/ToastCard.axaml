@@ -7,8 +7,8 @@
           CornerRadius="8" BoxShadow="{DynamicResource ToastShadow}">
     <Border.Transitions>
       <Transitions>
-        <DoubleTransition Property="Opacity" Duration="0:0:0.2"/>
-        <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.2"/>
+        <DoubleTransition Property="Opacity" Duration="{StaticResource MotionNormal}"/>
+        <TransformOperationsTransition Property="RenderTransform" Duration="{StaticResource MotionNormal}"/>
       </Transitions>
     </Border.Transitions>
     <DockPanel LastChildFill="True">

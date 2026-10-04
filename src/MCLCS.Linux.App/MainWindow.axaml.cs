@@ -61,6 +61,26 @@ public partial class MainWindow : Window
         Opened += (_, _) => _ = UpdateDialog.CheckAndShowAsync(this);
         // 初始页面路由（默认主页为游戏页，无侧栏）
         ShowPage();
+
+        // 首帧淡入：XAML 初始 Opacity=0，等「布局定稿 + FitToScreen 已铺好尺寸 + 首帧真正渲染完成」
+        // 之后再淡入到 1。避免用户看到窗口先空白/尺寸未定 → 内容逐行长出来的启动闪烁。
+        // 最后注册，确保排在 FitToScreen 等 Opened 回调之后执行。
+        Opened += async (_, _) => await FadeInAfterFirstFrameAsync();
+    }
+
+    /// <summary>
+    /// 首帧渲染完成后把窗口从透明淡入到不透明。
+    /// 用 <see cref="DispatcherPriority.Loaded"/> 确保本轮布局已完成；再让出一帧取定稿尺寸，
+    /// 最后以 <c>MotionFx.Slow</c> 统一时长淡入（动画关闭时直接置 1，保证内容一定可见）。
+    /// </summary>
+    private async Task FadeInAfterFirstFrameAsync()
+    {
+        // 等 Loaded 优先级任务跑完（本轮布局定稿）。
+        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Loaded);
+        // 再让出一帧，确保 FitToScreen 设置的 Width/Height 已反映到可视树。
+        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+
+        MotionFx.FadeIn(this);
     }
 
     /// <summary>按主屏工作区尺寸铺满窗口（避免固定尺寸在大屏上留黑边）。

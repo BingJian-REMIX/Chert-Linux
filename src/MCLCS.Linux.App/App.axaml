@@ -95,9 +95,9 @@
             <Setter Property="RenderTransform" Value="translateY(0px)"/>
             <Setter Property="Transitions">
                 <Transitions>
-                    <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.15"/>
-                    <BoxShadowsTransition Property="BoxShadow" Duration="0:0:0.15"/>
-                    <BrushTransition Property="BorderBrush" Duration="0:0:0.15"/>
+                    <TransformOperationsTransition Property="RenderTransform" Duration="{DynamicResource MotionFast}"/>
+                    <BoxShadowsTransition Property="BoxShadow" Duration="{DynamicResource MotionFast}"/>
+                    <BrushTransition Property="BorderBrush" Duration="{DynamicResource MotionFast}"/>
                 </Transitions>
             </Setter>
         </Style>
@@ -250,6 +250,13 @@
 
         <!-- ===== 字体缩放基准（对齐 WPF Controls.xaml BaseFontSize，bug #10） ===== -->
         <x:Double x:Key="BaseFontSize">13</x:Double>
+
+        <!-- ===== 统一动画时长（全项目唯一定义处，禁止再散落硬编码 0:0:0.15 等）=====
+             与 MotionFx.Fast / Normal / Slow 一一对应，改这里即全局生效。
+             观测值：Fast=悬停/按下/淡入，Normal=页面/面板切换，Slow=首帧淡入/大范围过渡。 -->
+        <x:TimeSpan x:Key="MotionFast">0:0:0.150</x:TimeSpan>
+        <x:TimeSpan x:Key="MotionNormal">0:0:0.200</x:TimeSpan>
+        <x:TimeSpan x:Key="MotionSlow">0:0:0.250</x:TimeSpan>
 
         <!-- ===== 语义前景/强调（补齐 WPF DarkTheme 缺失键） ===== -->
         <SolidColorBrush x:Key="AccentForeground" Color="#FFFFFF"/>

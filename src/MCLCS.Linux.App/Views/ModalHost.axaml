@@ -6,7 +6,7 @@
     <Border x:Name="Scrim" Background="{DynamicResource ScrimBrush}" PointerPressed="Scrim_PointerPressed">
       <Border.Transitions>
         <Transitions>
-          <DoubleTransition Property="Opacity" Duration="0:0:0.15"/>
+          <DoubleTransition Property="Opacity" Duration="{StaticResource MotionFast}"/>
         </Transitions>
       </Border.Transitions>
     </Border>
@@ -19,8 +19,8 @@
             BoxShadow="{DynamicResource ModalShadow}">
       <Border.Transitions>
         <Transitions>
-          <DoubleTransition Property="Opacity" Duration="0:0:0.2"/>
-          <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.2"/>
+          <DoubleTransition Property="Opacity" Duration="{StaticResource MotionNormal}"/>
+          <TransformOperationsTransition Property="RenderTransform" Duration="{StaticResource MotionNormal}"/>
         </Transitions>
       </Border.Transitions>
       <DockPanel LastChildFill="True">

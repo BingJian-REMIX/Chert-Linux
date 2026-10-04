@@ -8,7 +8,8 @@
         Width="1100" Height="720" MinWidth="900" MinHeight="600"
         Background="{DynamicResource WindowBackground}"
         SystemDecorations="None"
-        WindowStartupLocation="Manual">
+        WindowStartupLocation="Manual"
+        Opacity="0">
 
   <Window.Resources>
     <conv:HexToBrushConverter x:Key="HexToBrush"/>
@@ -104,8 +105,8 @@
               </Button.Background>
               <Button.Transitions>
                 <Transitions>
-                  <DoubleTransition Property="Width" Duration="0:0:0.2"/>
-                  <BrushTransition Property="Background" Duration="0:0:0.15"/>
+                  <DoubleTransition Property="Width" Duration="{StaticResource MotionNormal}"/>
+                  <BrushTransition Property="Background" Duration="{StaticResource MotionFast}"/>
                 </Transitions>
               </Button.Transitions>
               <Grid>
@@ -167,7 +168,7 @@
               PointerEntered="Sidebar_Enter" PointerExited="Sidebar_Leave">
         <Border.Transitions>
           <Transitions>
-            <DoubleTransition Property="Width" Duration="0:0:0.2"/>
+            <DoubleTransition Property="Width" Duration="{StaticResource MotionNormal}"/>
           </Transitions>
         </Border.Transitions>
         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
@@ -226,7 +227,7 @@
               Background="{Binding SelectedTab.Kind, Converter={StaticResource TabTint}}">
         <Border.Transitions>
           <Transitions>
-            <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.2"/>
+            <TransformOperationsTransition Property="RenderTransform" Duration="{StaticResource MotionNormal}"/>
           </Transitions>
         </Border.Transitions>
         <Grid RowDefinitions="Auto,*">

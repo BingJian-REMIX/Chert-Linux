@@ -28,15 +28,29 @@ public static class MotionFx
     /// <summary>滚动距离（px）。</summary>
     public const double SlideOffsetX = 28;
 
-    /// <summary>滚动时长，与 WPF <c>SlideMs</c> 对齐。</summary>
-    public static readonly TimeSpan SlideMs = TimeSpan.FromMilliseconds(200);
+    // ===== 统一动画常量（建议：全局只此一处定义时长/缓动，避免各页硬编码 0:0:0.15 等）=====
 
-    private static readonly TimeSpan FadeMs = TimeSpan.FromMilliseconds(160);
+    /// <summary>快速：悬停 / 按下 / 微交互（对齐 WPF 150ms）。</summary>
+    public static readonly TimeSpan Fast = TimeSpan.FromMilliseconds(150);
+
+    /// <summary>常规：页面 / 面板切换（对齐 WPF 200ms）。</summary>
+    public static readonly TimeSpan Normal = TimeSpan.FromMilliseconds(200);
+
+    /// <summary>慢速：首帧淡入等大范围过渡（250ms）。</summary>
+    public static readonly TimeSpan Slow = TimeSpan.FromMilliseconds(250);
+
+    /// <summary>统一缓动（EaseOutCubic，观感与 WPF RevealEase 一致）。</summary>
+    public static readonly Easing StandardEase = new CubicEaseOut();
+
+    /// <summary>滚动时长（常规）。</summary>
+    public static readonly TimeSpan SlideMs = Normal;
+
+    private static readonly TimeSpan FadeMs = Fast;
 
     /// <summary>是否允许动画（对齐 WPF <c>MainWindow.AnimationsEnabled</c>）。</summary>
     public static bool AnimationsEnabled { get; set; } = true;
 
-    private static readonly Easing Ease = new CubicEaseOut();
+    private static readonly Easing Ease = StandardEase;
 
     /// <summary>
     /// 交叉过渡换内容：旧内容（<paramref name="oldContent"/>，若为可视控件）向左滚出淡出，
@@ -87,6 +101,35 @@ public static class MotionFx
     {
         if (host is null || !CanAnimate(host)) return;
         _ = AnimateAsync(host, SlideOffsetX, 0, 0, 1, FadeMs);
+    }
+
+    /// <summary>
+    /// 纯淡入（启动首帧用）：把控件从透明过渡到不透明。
+    /// 动画关闭时直接置 1，保证内容<b>一定可见</b>（不会出现「忘了置回 1 导致全窗透明」）。
+    /// </summary>
+    public static void FadeIn(Control? control, TimeSpan? duration = null)
+    {
+        if (control is null) return;
+
+        if (!AnimationsEnabled)
+        {
+            control.Opacity = 1;
+            return;
+        }
+
+        var anim = new Animation
+        {
+            Duration = duration ?? Slow,
+            FillMode = FillMode.Forward,
+            Easing = StandardEase,
+        };
+        anim.Children.Add(new KeyFrame
+        {
+            Setters = { new Setter { Property = Visual.OpacityProperty, Value = 1d } },
+        });
+
+        control.Opacity = 0;
+        _ = anim.RunAsync(control, CancellationToken.None);
     }
 
     /// <summary>宿主是否可参与动画：动画开关开 + 在可视树中 + 尺寸有效。</summary>
