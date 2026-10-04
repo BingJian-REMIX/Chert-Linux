@@ -3,6 +3,7 @@
         xmlns:conv="clr-namespace:MCLCS.Linux.App.Converters"
         xmlns:vm="clr-namespace:MCLCS.Linux.App.ViewModels"
         xmlns:views="clr-namespace:MCLCS.Linux.App.Views"
+        xmlns:controls="clr-namespace:MCLCS.Linux.App.Controls"
         x:Class="MCLCS.Linux.App.MainWindow"
         Title="朗希夏"
         Width="1100" Height="720" MinWidth="900" MinHeight="600"
@@ -288,18 +289,22 @@
         <Button Width="26" Height="22" BorderThickness="0" Background="Transparent"
                 Command="{Binding PreviousCommand, Source={x:Static vm:MusicPlayerViewModel.Instance}}"
                 ToolTip.Tip="上一首" VerticalAlignment="Center">
-          <TextBlock Text="⏮" Foreground="{DynamicResource StatusForeground}"/>
+          <controls:PngIcon Token="previous" IconSize="12"/>
         </Button>
         <Button Width="26" Height="22" BorderThickness="0" Background="Transparent"
                 Command="{Binding PlayPauseCommand, Source={x:Static vm:MusicPlayerViewModel.Instance}}"
                 ToolTip.Tip="播放 / 暂停" VerticalAlignment="Center">
-          <TextBlock Text="{Binding IsPlaying, Source={x:Static vm:MusicPlayerViewModel.Instance}, Converter={StaticResource PlayPauseGlyph}}"
-                     Foreground="{DynamicResource StatusForeground}"/>
+          <Panel>
+            <controls:PngIcon Token="play" IconSize="12"
+                              IsVisible="{Binding !IsPlaying, Source={x:Static vm:MusicPlayerViewModel.Instance}}"/>
+            <controls:PngIcon Token="pause" IconSize="12"
+                              IsVisible="{Binding IsPlaying, Source={x:Static vm:MusicPlayerViewModel.Instance}}"/>
+          </Panel>
         </Button>
         <Button Width="26" Height="22" BorderThickness="0" Background="Transparent"
                 Command="{Binding NextCommand, Source={x:Static vm:MusicPlayerViewModel.Instance}}"
                 ToolTip.Tip="下一首" VerticalAlignment="Center">
-          <TextBlock Text="⏭" Foreground="{DynamicResource StatusForeground}"/>
+          <controls:PngIcon Token="next" IconSize="12"/>
         </Button>
         <StackPanel Orientation="Vertical" VerticalAlignment="Center" Margin="8,0,0,0">
           <TextBlock Text="{Binding CurrentTrackDisplay, Source={x:Static vm:MusicPlayerViewModel.Instance}}"
@@ -321,7 +326,12 @@
         <Button x:Name="MusicExpandBtn" Width="24" Height="22" BorderThickness="0" Background="Transparent" Margin="6,0,0,0"
                 Command="{Binding ExpandCommand, Source={x:Static vm:MusicPlayerViewModel.Instance}}"
                 ToolTip.Tip="展开 / 收起播放列表" VerticalAlignment="Center">
-          <TextBlock Text="▤" Foreground="{DynamicResource StatusForeground}"/>
+          <Panel>
+            <controls:PngIcon Token="menu-unfold" IconSize="12"
+                              IsVisible="{Binding !Expanded, Source={x:Static vm:MusicPlayerViewModel.Instance}}"/>
+            <controls:PngIcon Token="menu-fold" IconSize="12"
+                              IsVisible="{Binding Expanded, Source={x:Static vm:MusicPlayerViewModel.Instance}}"/>
+          </Panel>
         </Button>
       </StackPanel>
 
@@ -371,19 +381,22 @@
               <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
                 <Button Width="30" Height="26" Classes="modal-btn"
                         Command="{Binding PreviousCommand}" ToolTip.Tip="上一首">
-                  <TextBlock Text="⏮" Foreground="{DynamicResource PrimaryForeground}"/>
+                  <controls:PngIcon Token="previous" IconSize="14"/>
                 </Button>
                 <Button Width="34" Height="26" Classes="modal-btn primary"
                         Command="{Binding PlayPauseCommand}" ToolTip.Tip="播放 / 暂停">
-                  <TextBlock Text="{Binding IsPlaying, Converter={StaticResource PlayPauseGlyph}}" Foreground="White"/>
+                  <Panel>
+                    <controls:PngIcon Token="play" IconSize="16" IsVisible="{Binding !IsPlaying}"/>
+                    <controls:PngIcon Token="pause" IconSize="16" IsVisible="{Binding IsPlaying}"/>
+                  </Panel>
                 </Button>
                 <Button Width="30" Height="26" Classes="modal-btn"
                         Command="{Binding NextCommand}" ToolTip.Tip="下一首">
-                  <TextBlock Text="⏭" Foreground="{DynamicResource PrimaryForeground}"/>
+                  <controls:PngIcon Token="next" IconSize="14"/>
                 </Button>
               </StackPanel>
               <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                <TextBlock Text="🔊" VerticalAlignment="Center"/>
+                <controls:PngIcon Token="mic" IconSize="14" VerticalAlignment="Center"/>
                 <Slider Minimum="0" Maximum="100" Width="150" Value="{Binding Volume, Mode=TwoWay}"
                         VerticalAlignment="Center"/>
                 <TextBlock Text="{Binding Volume, Mode=OneWay}" VerticalAlignment="Center"

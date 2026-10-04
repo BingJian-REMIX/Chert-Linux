@@ -1,5 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:MCLCS.Linux.App.Controls"
              x:Class="MCLCS.Linux.App.Views.ModalHost">
   <Grid x:Name="Root" IsVisible="False">
     <!-- 遮罩：点击空白关闭（对齐设计稿 scrimIn 150ms 淡入）-->
@@ -28,7 +29,9 @@
               IsVisible="{Binding CurrentDialog.Title, Converter={x:Static ObjectConverters.IsNotNull}}">
           <TextBlock Text="{Binding CurrentDialog.Title}" FontSize="16" FontWeight="Bold"
                      Foreground="{DynamicResource PrimaryForeground}" VerticalAlignment="Center"/>
-          <Button Grid.Column="1" Classes="modal-close" Content="✕" Click="CloseBtn_Click"/>
+          <Button Grid.Column="1" Classes="modal-close" Click="CloseBtn_Click">
+            <Button.Content><controls:PngIcon Token="close" IconSize="12"/></Button.Content>
+          </Button>
         </Grid>
         <ItemsControl DockPanel.Dock="Bottom" ItemsSource="{Binding CurrentDialog.Buttons}" Margin="0,18,0,0">
           <ItemsControl.ItemsPanel>

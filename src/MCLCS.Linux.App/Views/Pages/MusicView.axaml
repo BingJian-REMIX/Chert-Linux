@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="clr-namespace:MCLCS.Linux.App.ViewModels"
              xmlns:conv="clr-namespace:MCLCS.Linux.App.Converters"
+             xmlns:controls="clr-namespace:MCLCS.Linux.App.Controls"
              x:Class="MCLCS.Linux.App.Views.Pages.MusicView">
   <UserControl.Resources>
     <conv:BoolToVisibleConverter x:Key="BoolToVis"/>
@@ -44,16 +45,26 @@
           <TextBlock FontSize="11" Opacity="0.85" Text="{Binding StatusText}" TextTrimming="CharacterEllipsis"
                      Foreground="{DynamicResource SecondaryForeground}"/>
           <StackPanel Orientation="Horizontal" Spacing="6">
-            <Button Classes="musicBtn" Command="{Binding PreviousCommand}" Content="⏮"/>
-            <Button Classes="musicBtn" Command="{Binding PlayPauseCommand}"
-                    Background="{DynamicResource AccentBrush}" Foreground="White" BorderThickness="0">
-              <TextBlock Text="{Binding IsPlaying, Converter={StaticResource PlayPauseGlyph}}" Foreground="White"/>
+            <Button Classes="musicBtn" Command="{Binding PreviousCommand}" ToolTip.Tip="上一首">
+              <controls:PngIcon Token="previous" IconSize="16"/>
             </Button>
-            <Button Classes="musicBtn" Command="{Binding NextCommand}" Content="⏭"/>
-            <Button Classes="musicBtn" Command="{Binding SetModeCommand}" Content="🔁"
-                    ToolTip.Tip="{Binding ModeText}"/>
+            <Button Classes="musicBtn" Command="{Binding PlayPauseCommand}"
+                    Background="{DynamicResource AccentBrush}" Foreground="White" BorderThickness="0"
+                    ToolTip.Tip="播放 / 暂停">
+              <!-- 播放/暂停双图标叠放，按 IsPlaying 切换（等价 WPF 的 Style+DataTrigger 换 Token） -->
+              <Panel>
+                <controls:PngIcon Token="play" IconSize="18" IsVisible="{Binding !IsPlaying}"/>
+                <controls:PngIcon Token="pause" IconSize="18" IsVisible="{Binding IsPlaying}"/>
+              </Panel>
+            </Button>
+            <Button Classes="musicBtn" Command="{Binding NextCommand}" ToolTip.Tip="下一首">
+              <controls:PngIcon Token="next" IconSize="16"/>
+            </Button>
+            <Button Classes="musicBtn" Command="{Binding SetModeCommand}" ToolTip.Tip="{Binding ModeText}">
+              <controls:PngIcon Token="menu-unfold" IconSize="16"/>
+            </Button>
             <StackPanel Orientation="Horizontal" Margin="12,0,0,0" VerticalAlignment="Center" Spacing="6">
-              <TextBlock Text="🔊" VerticalAlignment="Center"/>
+              <controls:PngIcon Token="mic" IconSize="16" VerticalAlignment="Center"/>
               <Slider Minimum="0" Maximum="100" Width="140" Value="{Binding Volume, Mode=TwoWay}" VerticalAlignment="Center"/>
               <TextBlock Text="{Binding Volume, Mode=OneWay, StringFormat='{}{0}%'}" VerticalAlignment="Center"
                          Foreground="{DynamicResource SecondaryForeground}"/>

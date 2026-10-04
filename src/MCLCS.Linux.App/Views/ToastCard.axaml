@@ -1,5 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:MCLCS.Linux.App.Controls"
              x:Class="MCLCS.Linux.App.Views.ToastCard">
   <Border Classes="toast-card"
           Background="{DynamicResource ControlBackground}"
@@ -13,7 +14,9 @@
     </Border.Transitions>
     <DockPanel LastChildFill="True">
       <Rectangle x:Name="Bar" DockPanel.Dock="Left" Width="4" Fill="{DynamicResource AccentBrush}"/>
-      <Button DockPanel.Dock="Right" Classes="toast-close" Content="✕" Click="Close_Click"/>
+      <Button DockPanel.Dock="Right" Classes="toast-close" Click="Close_Click">
+        <Button.Content><controls:PngIcon Token="close" IconSize="12"/></Button.Content>
+      </Button>
       <StackPanel Margin="12,10,8,10">
         <TextBlock Text="{Binding Options.Title}" FontSize="13" FontWeight="Bold"
                    Foreground="{DynamicResource PrimaryForeground}"/>

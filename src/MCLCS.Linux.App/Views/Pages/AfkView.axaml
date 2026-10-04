@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="clr-namespace:MCLCS.Linux.App.ViewModels"
+             xmlns:controls="clr-namespace:MCLCS.Linux.App.Controls"
              x:Class="MCLCS.Linux.App.Views.Pages.AfkView"
              x:DataType="vm:AfkViewModel">
 
@@ -150,9 +151,11 @@
                 <Button Grid.Column="1" Classes="modal-btn" Content="载入" Width="48" Padding="0,2"
                         Command="{Binding DataContext.LoadCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
                         CommandParameter="{Binding}" Margin="0,0,4,0"/>
-                <Button Grid.Column="2" Classes="modal-btn" Content="✕" Width="30" Padding="0,2"
+                <Button Grid.Column="2" Classes="modal-btn" Width="30" Padding="0,2"
                         Command="{Binding DataContext.DeleteCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
-                        CommandParameter="{Binding}" Foreground="{DynamicResource DangerBrush}"/>
+                        CommandParameter="{Binding}" Foreground="{DynamicResource DangerBrush}">
+                  <Button.Content><controls:PngIcon Token="close" IconSize="12"/></Button.Content>
+                </Button>
               </Grid>
             </DataTemplate>
           </ListBox.ItemTemplate>
