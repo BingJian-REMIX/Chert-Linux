@@ -61,6 +61,8 @@ public class App : Application
         ApplyAccentColor(profile.ThemeColor);
         ApplyFontScale(profile.FontScale);
         ApplyBackgroundImage(profile.BackgroundImagePath);
+        // 动画总开关真正接线到运行时（此前只落盘 profile，无消费者）。
+        MotionFx.AnimationsEnabled = profile.AnimationsEnabled;
     }
 
     /// <summary>主题色：覆盖全局 Accent 系列资源（对齐 WPF bug #11：侧栏/按键/开关主题色失效）。</summary>
@@ -74,6 +76,10 @@ public class App : Application
         res["AccentBrush"] = new SolidColorBrush(color);
         res["InputFocusBorder"] = new SolidColorBrush(color);
         res["CardBorderHover"] = new SolidColorBrush(color);
+        // 侧边栏选中指示条跟随「设置 → 外观 → 主题色」（对齐 WPF 31e9124）。
+        // 此前该键虽在 App.axaml 中定义，却全项目零引用，指示条一直用 KindToBrush 取标签色，
+        // 导致用户改主题色时指示条纹丝不动。ThemePalettes 不含此键，切明暗主题不会冲掉它。
+        res["SidebarIndicatorBrush"] = new SolidColorBrush(color);
     }
 
     /// <summary>字体缩放：设置主窗口字号。Avalonia 下字号沿视觉树继承，未显式设置 FontSize 的控件随之缩放。</summary>

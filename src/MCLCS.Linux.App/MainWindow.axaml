@@ -190,9 +190,11 @@
             <ListBox.ItemTemplate>
               <DataTemplate>
                 <Grid Height="40" Margin="6,2">
-                  <!-- 选中指示竖线（当前主标签色）-->
+                  <!-- 选中指示竖线：跟随「设置 → 外观 → 主题色」（SidebarIndicatorBrush，
+                       由 App.ApplyAccentColor 写入）。此前用 KindToBrush 取当前主标签色，
+                       改主题色时指示条不变（对齐 WPF 31e9124）。 -->
                   <Rectangle Width="3" HorizontalAlignment="Left" VerticalAlignment="Stretch"
-                             Fill="{Binding DataContext.SelectedTab.Kind, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource KindToBrush}}">
+                             Fill="{DynamicResource SidebarIndicatorBrush}">
                     <Rectangle.IsVisible>
                       <MultiBinding Converter="{StaticResource Equals}">
                         <Binding Path="Id"/>

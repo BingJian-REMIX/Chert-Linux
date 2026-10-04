@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Avalonia.Controls;
 using MCLCS.Core.Localization;
+using MCLCS.Linux.App;
 
 namespace MCLCS.Linux.App.Views.Pages;
 
@@ -30,14 +31,29 @@ public partial class SettingsView : UserControl
     {
         InitializeComponent();
         CategoryList.ItemsSource = Defs.Select(d => new Cat(d.Id, LocaleManager.T(d.Key))).ToList();
+        // 首次选定会触发 SelectionChanged；此处置 _suppressAnimation 让首屏直接显示、不播入场动画。
+        _suppressAnimation = true;
         CategoryList.SelectedIndex = 0;
         PageHost.Content = Build(Defs[0].Id);
+        _suppressAnimation = false;
     }
+
+    /// <summary>首屏初始化期间抑制动画，避免设置页一打开就播一次滚动淡入。</summary>
+    private bool _suppressAnimation;
 
     private void CategoryList_SelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
-        if (CategoryList.SelectedItem is Cat c)
-            PageHost.Content = Build(c.Id);
+        if (CategoryList.SelectedItem is not Cat c) return;
+
+        var next = Build(c.Id);
+        if (_suppressAnimation)
+        {
+            PageHost.Content = next;
+            return;
+        }
+
+        // 左右滚动交叉过渡：旧内容向左滚出淡出、新内容从右滚入淡入（对齐 WPF MotionFX.SlideSwap）。
+        MotionFx.SwapContent(PageHost, next, PageHost.Content);
     }
 
     private static UserControl Build(string id) => id switch

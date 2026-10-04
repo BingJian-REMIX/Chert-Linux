@@ -84,7 +84,7 @@ public static class GameConstants
     public const string LauncherName = "MCLCS";
 
     /// <summary>启动器版本（写入 ${launcher_version}）。</summary>
-    public const string LauncherVersion = "2.5.6";
+    public const string LauncherVersion = "2.6.0";
 
     /// <summary>离线账号类型（写入 ${user_type}）。</summary>
     public const string OfflineUserType = "mojang";
