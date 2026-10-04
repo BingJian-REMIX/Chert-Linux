@@ -35,7 +35,7 @@
                   <DataTemplate>
                     <StackPanel Orientation="Horizontal" Spacing="6">
                       <TextBlock Text="{Binding DisplayName}"/>
-                      <TextBlock Text="{Binding AuthType}" Foreground="{DynamicResource SecondaryForeground}" FontSize="11"/>
+                      <TextBlock Text="{Binding SubtitleText}" Foreground="{DynamicResource SecondaryForeground}" FontSize="11"/>
                     </StackPanel>
                   </DataTemplate>
                 </ComboBox.ItemTemplate>
@@ -69,22 +69,25 @@
           <Button Content="刷新" Command="{Binding RefreshLanCommand}" Classes="modal-btn ghost sm"/>
         </StackPanel>
         <TextBlock Text="{Binding LanStatus}" Foreground="{DynamicResource SecondaryForeground}" FontSize="12"/>
-        <ItemsControl ItemsSource="{Binding LanServers}">
-          <ItemsControl.ItemsPanel>
-            <ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="12"/></ItemsPanelTemplate>
-          </ItemsControl.ItemsPanel>
-          <ItemsControl.ItemTemplate>
-            <DataTemplate>
-              <Border Classes="card" Width="230" Height="96">
-                <StackPanel Spacing="4">
-                  <TextBlock Text="{Binding Motd}" FontWeight="Bold" TextTrimming="CharacterEllipsis"/>
-                  <TextBlock Text="{Binding Endpoint}" Foreground="{DynamicResource SecondaryForeground}" FontSize="11"/>
-                  <Button Content="加入" HorizontalAlignment="Right" Classes="modal-btn primary sm"/>
-                </StackPanel>
-              </Border>
-            </DataTemplate>
-          </ItemsControl.ItemTemplate>
-        </ItemsControl>
+        <!-- 横向滚动：卡片流必须可横向滚动，否则窄窗口下内容直接溢出裁掉（对齐 WPF GameView 横向卡片流） -->
+        <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+          <ItemsControl ItemsSource="{Binding LanServers}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="12"/></ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <Border Classes="card" Width="230" Height="96">
+                  <StackPanel Spacing="4">
+                    <TextBlock Text="{Binding Motd}" FontWeight="Bold" TextTrimming="CharacterEllipsis"/>
+                    <TextBlock Text="{Binding Endpoint}" Foreground="{DynamicResource SecondaryForeground}" FontSize="11"/>
+                    <Button Content="加入" HorizontalAlignment="Right" Classes="modal-btn primary sm"/>
+                  </StackPanel>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
       </StackPanel>
 
       <!-- 服务器列表 -->
@@ -93,22 +96,25 @@
           <TextBlock Text="服务器列表" FontWeight="Bold" Foreground="{DynamicResource PrimaryForeground}"/>
           <Button Content="刷新" Command="{Binding RefreshServersCommand}" Classes="modal-btn ghost sm"/>
         </StackPanel>
-        <ItemsControl ItemsSource="{Binding Servers}">
-          <ItemsControl.ItemsPanel>
-            <ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="12"/></ItemsPanelTemplate>
-          </ItemsControl.ItemsPanel>
-          <ItemsControl.ItemTemplate>
-            <DataTemplate>
-              <Border Classes="card" Width="240" Height="96">
-                <StackPanel Spacing="4">
-                  <TextBlock Text="{Binding Name}" FontWeight="Bold" TextTrimming="CharacterEllipsis"/>
-                  <TextBlock Text="{Binding Address}" Foreground="{DynamicResource SecondaryForeground}" FontSize="11"/>
-                  <Button Content="加入" HorizontalAlignment="Right" Classes="modal-btn primary sm"/>
-                </StackPanel>
-              </Border>
-            </DataTemplate>
-          </ItemsControl.ItemTemplate>
-        </ItemsControl>
+        <!-- 横向滚动：卡片流必须可横向滚动，否则窄窗口下内容直接溢出裁掉（对齐 WPF GameView 横向卡片流） -->
+        <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+          <ItemsControl ItemsSource="{Binding Servers}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="12"/></ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <Border Classes="card" Width="240" Height="96">
+                  <StackPanel Spacing="4">
+                    <TextBlock Text="{Binding Name}" FontWeight="Bold" TextTrimming="CharacterEllipsis"/>
+                    <TextBlock Text="{Binding Address}" Foreground="{DynamicResource SecondaryForeground}" FontSize="11"/>
+                    <Button Content="加入" HorizontalAlignment="Right" Classes="modal-btn primary sm"/>
+                  </StackPanel>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
       </StackPanel>
 
       <!-- 智能推荐 -->
@@ -118,23 +124,26 @@
           <Button Content="刷新推荐" Command="{Binding RefreshRecommendCommand}" Classes="modal-btn ghost sm"/>
         </StackPanel>
         <TextBlock Text="{Binding RecommendStatus}" Foreground="{DynamicResource SecondaryForeground}" FontSize="12"/>
-        <ItemsControl ItemsSource="{Binding Recommendations}">
-          <ItemsControl.ItemsPanel>
-            <ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="12"/></ItemsPanelTemplate>
-          </ItemsControl.ItemsPanel>
-          <ItemsControl.ItemTemplate>
-            <DataTemplate>
-              <Border Classes="card" Width="250" Height="140">
-                <StackPanel Spacing="4">
-                  <TextBlock Text="{Binding Title}" FontWeight="Bold" TextTrimming="CharacterEllipsis"/>
-                  <TextBlock Text="{Binding Description}" Foreground="{DynamicResource SecondaryForeground}" FontSize="11" TextWrapping="Wrap" MaxHeight="44" TextTrimming="CharacterEllipsis"/>
-                  <TextBlock Text="{Binding Reason}" Foreground="{DynamicResource AccentBrush}" FontSize="11"/>
-                  <Button Content="一键安装" HorizontalAlignment="Right" Classes="modal-btn primary sm"/>
-                </StackPanel>
-              </Border>
-            </DataTemplate>
-          </ItemsControl.ItemTemplate>
-        </ItemsControl>
+        <!-- 横向滚动：卡片流必须可横向滚动，否则窄窗口下内容直接溢出裁掉（对齐 WPF GameView 横向卡片流） -->
+        <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+          <ItemsControl ItemsSource="{Binding Recommendations}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="12"/></ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <Border Classes="card" Width="250" Height="140">
+                  <StackPanel Spacing="4">
+                    <TextBlock Text="{Binding Title}" FontWeight="Bold" TextTrimming="CharacterEllipsis"/>
+                    <TextBlock Text="{Binding Description}" Foreground="{DynamicResource SecondaryForeground}" FontSize="11" TextWrapping="Wrap" MaxHeight="44" TextTrimming="CharacterEllipsis"/>
+                    <TextBlock Text="{Binding Reason}" Foreground="{DynamicResource AccentBrush}" FontSize="11"/>
+                    <Button Content="一键安装" HorizontalAlignment="Right" Classes="modal-btn primary sm"/>
+                  </StackPanel>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
       </StackPanel>
 
       <!-- 统计 -->

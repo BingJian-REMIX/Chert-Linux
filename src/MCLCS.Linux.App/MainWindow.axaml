@@ -252,11 +252,9 @@
       <!-- 内容宿主：顶部同色渐隐带，切页时整体淡入 + 上移（对齐设计稿 pageIn）-->
       <Border x:Name="ContentHost" Grid.Column="1"
               Background="{Binding SelectedTab.Kind, Converter={StaticResource TabTint}}">
-        <Border.Transitions>
-          <Transitions>
-            <TransformOperationsTransition Property="RenderTransform" Duration="{StaticResource MotionNormal}"/>
-          </Transitions>
-        </Border.Transitions>
+        <!-- 切页位移动画由 MotionFx.SlideInFromRight 独占驱动（代码侧）。
+             此处不再挂 TransformOperationsTransition：两套动画会同时抢 RenderTransform 互相打断，
+             且 Transition 的 FillMode 会残留终值、让下一次 MotionFx 动画的起始值失真。 -->
         <Grid RowDefinitions="Auto,*">
           <!-- 页头：有侧栏时显示标题 / 描述（工具箱页不显示「分组」与介绍） -->
           <StackPanel Grid.Row="0" Spacing="4" Margin="18,18,18,0"

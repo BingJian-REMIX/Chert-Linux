@@ -53,6 +53,10 @@ public class AccountsViewModel : ObservableObject
     public ICommand RemoveCommand { get; }
     public ICommand LoginMicrosoftCommand { get; }
 
+    /// <summary>把当前选中账号设为「当前账号」（对齐 WPF SetActiveAccountCommand）：
+    /// 双击账号条目即可直达 —— 多角色时切账号是最高频动作。</summary>
+    public ICommand SetActiveAccountCommand { get; }
+
     private static readonly HttpClient Http = new();
 
     private bool _isMsBusy;
@@ -74,7 +78,24 @@ public class AccountsViewModel : ObservableObject
         AddOfflineCommand = new RelayCommand(_ => AddOffline());
         RemoveCommand = new RelayCommand(p => RemoveAccount(p as AccountEntry));
         LoginMicrosoftCommand = new AsyncRelayCommand(_ => LoginMicrosoftAsync());
+        SetActiveAccountCommand = new RelayCommand(_ => SetActiveAccount());
         Load();
+    }
+
+    /// <summary>把选中账号标记为「最近使用」，游戏页/版本页据此默认选中（对齐 WPF SetActiveAccount）。</summary>
+    private void SetActiveAccount()
+    {
+        if (SelectedAccount is not { } acc) return;
+        try
+        {
+            AccountStore.MarkUsed(_gameRoot, acc.Id);
+            acc.LastUsed = DateTime.UtcNow.ToString("o");
+            Status = $"已设为当前账号：{acc.DisplayName}";
+        }
+        catch (Exception ex)
+        {
+            Status = $"设置失败：{ex.Message}";
+        }
     }
 
     private void Load()

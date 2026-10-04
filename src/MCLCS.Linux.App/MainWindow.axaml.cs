@@ -153,19 +153,14 @@ public partial class MainWindow : Window
         ShowPage();
     }
 
-    /// <summary>切页展开动画：内容上移淡入（对齐设计稿 @keyframes pageIn：opacity 0→1 + translateY(18px)→0，200ms ease）。
-    /// 注意：Opacity 过渡会在导航后偶发卡在半透明（headless / 连续切页时尤甚），导致整页文字被压暗。
-    /// 因此这里不再用 Opacity 过渡，始终保证内容 <c>Opacity=1</c>（可读性优先），仅保留位移滑入效果。</summary>
+    /// <summary>切页展开动画：新内容<b>从右滚入</b>（对齐 WPF d9fdfe3「设置分类切换改为从右淡入/向左淡出，并应用到全局」）。
+    /// 此前为垂直上移（translateY 18px），与 WPF 的横向观感不一致。
+    /// 注意：不用 Opacity 过渡 —— 曾在导航后偶发卡在半透明（headless / 连续切页时尤甚）导致整页文字被压暗；
+    /// 这里只做位移滑入，可读性优先。<c>MotionFx.SlideInFromRight</c> 内部已按 AnimationsEnabled 降级。</summary>
     private void PlayContentEnter()
     {
         if (ContentHost is null) return;
-        ContentHost.Opacity = 1;
-        ContentHost.RenderTransform = TransformOperations.Parse("translateY(18px)");
-        Dispatcher.UIThread.Post(() =>
-        {
-            if (ContentHost is null) return;
-            ContentHost.RenderTransform = TransformOperations.Parse("translateY(0px)");
-        }, DispatcherPriority.Render);
+        MotionFx.SlideInFromRight(ContentHost);
     }
 
     // 标题栏下载按钮：打开下载队列（锚定到该按钮中心弹出）
@@ -401,8 +396,32 @@ public partial class MainWindow : Window
     private void OnGameProcessStarted(System.Diagnostics.Process proc, long _)
     {
         MusicPlayerViewModel.Instance.OnGameLaunch();
+        // 启动游戏时用 Toast 提示（对齐 WPF NotifyGameStarted）：挂在这个事件上可覆盖
+        // 全部启动入口（首页快速启动 / 版本列表 / 服务器加入 / 崩溃恢复），不必逐入口各写一遍。
+        try { NotifyGameStarted(proc); }
+        catch { /* 提示属非关键，失败不影响游戏运行 */ }
+
         proc.EnableRaisingEvents = true;
         proc.Exited += (_, _) => MusicPlayerViewModel.Instance.OnGameExit();
+    }
+
+    /// <summary>
+    /// 弹出「游戏已启动」提示。多开时额外报当前运行实例数，让用户知道已经开了几个。
+    /// 注：Linux 的 <c>InstanceTracker.ActiveCount()</c> 只统计本进程内登记的实例，
+    /// 不含「启动器重启前就在跑」的跨进程实例（跨进程扫描属 WPF 侧未同步项）。
+    /// </summary>
+    private static void NotifyGameStarted(System.Diagnostics.Process proc)
+    {
+        var pid = -1;
+        try { pid = proc.Id; } catch { /* 进程可能已退出 */ }
+
+        var running = MCLCS.Core.MultiInstance.InstanceTracker.ActiveCount();
+
+        var text = running > 1
+            ? $"游戏已启动（进程 {pid}）· 当前运行 {running} 个实例"
+            : $"游戏已启动（进程 {pid}）";
+
+        Services.ToastService.Show("启动游戏", text, Services.ToastKind.Success);
     }
 
     /// <summary>语言切换时重绑侧栏列表（走 KeyToTextConverter 的项需重建项才能刷新文本）；
