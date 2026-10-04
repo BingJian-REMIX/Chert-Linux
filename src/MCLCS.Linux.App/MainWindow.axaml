@@ -280,20 +280,45 @@
         <TextBlock Text="{Binding RunningInstancesText}"/>
       </StackPanel>
 
-      <!-- 音乐播放器迷你条（规格 2.3：状态栏迷你条可展开为完整列表） -->
-      <StackPanel Orientation="Horizontal" DockPanel.Dock="Left" Margin="14,0,0,0" Spacing="4"
+      <!-- 音乐播放器迷你条（规格 2.3：状态栏迷你条可展开为完整列表）
+           对齐 WPF MusicMini：上一首 / 播放暂停 / 下一首 + 曲目双行 + 细进度条 + 展开按钮 -->
+      <StackPanel Orientation="Horizontal" DockPanel.Dock="Left" Margin="14,0,0,0" Spacing="2"
                   VerticalAlignment="Center"
                   IsVisible="{Binding HasTrack, Source={x:Static vm:MusicPlayerViewModel.Instance}, Converter={StaticResource BoolToVis}}">
+        <Button Width="26" Height="22" BorderThickness="0" Background="Transparent"
+                Command="{Binding PreviousCommand, Source={x:Static vm:MusicPlayerViewModel.Instance}}"
+                ToolTip.Tip="上一首" VerticalAlignment="Center">
+          <TextBlock Text="⏮" Foreground="{DynamicResource StatusForeground}"/>
+        </Button>
         <Button Width="26" Height="22" BorderThickness="0" Background="Transparent"
                 Command="{Binding PlayPauseCommand, Source={x:Static vm:MusicPlayerViewModel.Instance}}"
                 ToolTip.Tip="播放 / 暂停" VerticalAlignment="Center">
           <TextBlock Text="{Binding IsPlaying, Source={x:Static vm:MusicPlayerViewModel.Instance}, Converter={StaticResource PlayPauseGlyph}}"
                      Foreground="{DynamicResource StatusForeground}"/>
         </Button>
-        <TextBlock Text="{Binding CurrentTrackDisplay, Source={x:Static vm:MusicPlayerViewModel.Instance}}"
-                   VerticalAlignment="Center" MaxWidth="200" TextTrimming="CharacterEllipsis"
-                   Foreground="{DynamicResource StatusForeground}"/>
-        <Button x:Name="MusicExpandBtn" Width="24" Height="22" BorderThickness="0" Background="Transparent"
+        <Button Width="26" Height="22" BorderThickness="0" Background="Transparent"
+                Command="{Binding NextCommand, Source={x:Static vm:MusicPlayerViewModel.Instance}}"
+                ToolTip.Tip="下一首" VerticalAlignment="Center">
+          <TextBlock Text="⏭" Foreground="{DynamicResource StatusForeground}"/>
+        </Button>
+        <StackPanel Orientation="Vertical" VerticalAlignment="Center" Margin="8,0,0,0">
+          <TextBlock Text="{Binding CurrentTrackDisplay, Source={x:Static vm:MusicPlayerViewModel.Instance}}"
+                     FontSize="12" MaxWidth="200" TextTrimming="CharacterEllipsis"
+                     Foreground="{DynamicResource StatusForeground}"/>
+          <TextBlock Text="{Binding CurrentTrackMetaText, Source={x:Static vm:MusicPlayerViewModel.Instance}}"
+                     FontSize="10" Opacity="0.65" MaxWidth="200" TextTrimming="CharacterEllipsis"
+                     Foreground="{DynamicResource StatusForeground}"/>
+        </StackPanel>
+        <!-- 细进度条：长度未知（在线流媒体）时禁用（对齐 WPF IsEnabled=HasProgress）。
+             拖拽开始置 IsSeeking=true 暂停 500ms 心跳回写，松开才真正 seek，避免拖动被采样值拽回。 -->
+        <Slider Minimum="0" Maximum="1" Width="88" VerticalAlignment="Center" Margin="10,0,0,0"
+                x:Name="MusicMiniSeek"
+                Value="{Binding ProgressRatio, Source={x:Static vm:MusicPlayerViewModel.Instance}, Mode=TwoWay}"
+                IsEnabled="{Binding HasProgress, Source={x:Static vm:MusicPlayerViewModel.Instance}}"
+                PointerPressed="MusicSeek_PointerPressed"
+                PointerReleased="MusicSeek_PointerReleased"
+                ToolTip.Tip="{Binding PositionText, Source={x:Static vm:MusicPlayerViewModel.Instance}}"/>
+        <Button x:Name="MusicExpandBtn" Width="24" Height="22" BorderThickness="0" Background="Transparent" Margin="6,0,0,0"
                 Command="{Binding ExpandCommand, Source={x:Static vm:MusicPlayerViewModel.Instance}}"
                 ToolTip.Tip="展开 / 收起播放列表" VerticalAlignment="Center">
           <TextBlock Text="▤" Foreground="{DynamicResource StatusForeground}"/>
@@ -310,13 +335,14 @@
     <!-- 音乐播放列表弹出层（迷你条展开） -->
     <Popup Grid.Row="2" PlacementTarget="{Binding #MusicExpandBtn}" Placement="Top"
            IsOpen="{Binding Expanded, Source={x:Static vm:MusicPlayerViewModel.Instance}, Mode=OneWay}"
-           IsLightDismissEnabled="True" Width="320" Height="300">
+           IsLightDismissEnabled="True" Width="320" Height="400">
       <Border Background="{DynamicResource ControlBackground}" BorderBrush="{DynamicResource ControlBorder}"
               BorderThickness="1" CornerRadius="8" Padding="10">
         <Grid DataContext="{x:Static vm:MusicPlayerViewModel.Instance}">
           <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
           </Grid.RowDefinitions>
           <TextBlock Grid.Row="0" Text="播放列表" FontWeight="Bold" Foreground="{DynamicResource SecondaryForeground}"
                      Margin="2,0,0,6"/>
@@ -338,6 +364,33 @@
               </DataTemplate>
             </ListBox.ItemTemplate>
           </ListBox>
+          <!-- 底部传输控制条（对齐 WPF 播放列表弹窗传输控件）：上一首 / 播放暂停 / 下一首 + 音量 -->
+          <Border Grid.Row="2" Margin="0,8,0,0" Padding="0,8,0,0"
+                  BorderBrush="{DynamicResource ControlBorder}" BorderThickness="0,1,0,0">
+            <StackPanel Spacing="6">
+              <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
+                <Button Width="30" Height="26" Classes="modal-btn"
+                        Command="{Binding PreviousCommand}" ToolTip.Tip="上一首">
+                  <TextBlock Text="⏮" Foreground="{DynamicResource PrimaryForeground}"/>
+                </Button>
+                <Button Width="34" Height="26" Classes="modal-btn primary"
+                        Command="{Binding PlayPauseCommand}" ToolTip.Tip="播放 / 暂停">
+                  <TextBlock Text="{Binding IsPlaying, Converter={StaticResource PlayPauseGlyph}}" Foreground="White"/>
+                </Button>
+                <Button Width="30" Height="26" Classes="modal-btn"
+                        Command="{Binding NextCommand}" ToolTip.Tip="下一首">
+                  <TextBlock Text="⏭" Foreground="{DynamicResource PrimaryForeground}"/>
+                </Button>
+              </StackPanel>
+              <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                <TextBlock Text="🔊" VerticalAlignment="Center"/>
+                <Slider Minimum="0" Maximum="100" Width="150" Value="{Binding Volume, Mode=TwoWay}"
+                        VerticalAlignment="Center"/>
+                <TextBlock Text="{Binding Volume, Mode=OneWay}" VerticalAlignment="Center"
+                           Foreground="{DynamicResource SecondaryForeground}"/>
+              </StackPanel>
+            </StackPanel>
+          </Border>
         </Grid>
       </Border>
     </Popup>

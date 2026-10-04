@@ -340,6 +340,24 @@ public partial class MainWindow : Window
         _vm.SidebarExpanded = false;
     }
 
+    // ===== 迷你条进度条拖拽（对齐 WPF wasSeeking：拖拽中不回写采样值，松手才真正 seek）=====
+
+    /// <summary>按下进度条：置 IsSeeking，让 500ms 心跳暂停回写 PositionSec，
+    /// 否则用户刚拖到的位置会被下一拍采样值拽回去（进度条抖动/回跳）。</summary>
+    private void MusicSeek_PointerPressed(object? sender, RoutedEventArgs e)
+    {
+        MusicPlayerViewModel.Instance.IsSeeking = true;
+    }
+
+    /// <summary>松开进度条：按当前值真正跳转，并恢复心跳回写。</summary>
+    private void MusicSeek_PointerReleased(object? sender, RoutedEventArgs e)
+    {
+        var vm = MusicPlayerViewModel.Instance;
+        if (sender is Slider slider)
+            vm.SeekTo(slider.Value, commit: true);
+        vm.IsSeeking = false;
+    }
+
     // ===== 窗口控制 =====
     /// <summary>标题栏按下拖拽。但若按下落在交互控件（标签按钮 / 窗口控制 / 搜索框）上，
     /// 则不触发拖拽，交给控件自身的 Click 处理——否则 BeginMoveDrag 会吞掉标签点击，

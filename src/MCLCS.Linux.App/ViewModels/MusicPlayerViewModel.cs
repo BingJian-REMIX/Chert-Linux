@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Windows.Input;
+using Avalonia.Threading;
 using MCLCS.Core.Mvvm;
 using MCLCS.Core.Profiles;
 using MCLCS.Core.Toolbox;
@@ -17,6 +18,16 @@ public interface IMediaPlayer
     void Resume();
     void Stop();
     void SetVolume(int volume);
+
+    /// <summary>当前播放位置（秒）；未播放/不支持时返回 0（对齐 WPF IMediaPlayer.PositionSec）。</summary>
+    double PositionSec { get; }
+
+    /// <summary>当前音源总时长（秒）；未知（在线流媒体等）返回 0（对齐 WPF IMediaPlayer.DurationSec）。</summary>
+    double DurationSec { get; }
+
+    /// <summary>跳转到指定位置（秒）；不支持时忽略。</summary>
+    void Seek(double seconds);
+
     event Action? Ended;
 }
 
@@ -46,8 +57,22 @@ public class MusicPlayerViewModel : ObservableObject
     private bool _expanded;
     private string _mcOstStatus = "";
 
-    /// <summary>实际解码宿主（BASS），由主窗口注入。</summary>
-    public IMediaPlayer? Host { get; set; }
+    private IMediaPlayer? _host;
+
+    /// <summary>实际解码宿主（BASS），由主窗口注入。注入后即启动进度采样定时器。</summary>
+    public IMediaPlayer? Host
+    {
+        get => _host;
+        set
+        {
+            if (ReferenceEquals(_host, value)) return;
+            _host = value;
+            if (value is not null)
+                StartProgressTimer();      // 有宿主才能采样位置/时长
+            else
+                StopProgressTimer();
+        }
+    }
 
     public ObservableCollection<string> OnlinePresets { get; } = new()
     {
@@ -74,6 +99,10 @@ public class MusicPlayerViewModel : ObservableObject
         var profile = ProfileStore.Load(GameConstants.DefaultGameRoot);
         _autoDuck = profile.MusicAutoDuck;
         _volume = profile.MusicVolume;
+
+        // 进度心跳：宿主注入后才有意义，故此处只备好定时器，实际启动见 Host setter。
+        _progressTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
+        _progressTimer.Tick += OnProgressTick;
     }
 
     public ICommand PlayPauseCommand { get; }
@@ -119,13 +148,99 @@ public class MusicPlayerViewModel : ObservableObject
             if (SetField(ref _currentTrack, value))
             {
                 OnPropertyChanged(nameof(CurrentTrackDisplay));
+                OnPropertyChanged(nameof(CurrentTrackMetaText));
                 OnPropertyChanged(nameof(HasTrack));
             }
         }
     }
 
+    /// <summary>当前曲目元数据副标题「歌手 · 专辑」（迷你条曲目名下方一行，对齐 WPF CurrentTrackMetaText）。</summary>
+    public string CurrentTrackMetaText => CurrentTrack?.MetaText ?? "";
+
     /// <summary>是否有已选中的曲目（用于状态栏迷你条显隐）。</summary>
     public bool HasTrack => CurrentTrack is not null;
+
+    // ===== 播放进度（迷你条细进度条 + 音乐页进度条，对齐 WPF _progressTimer）=====
+
+    private double _positionSec;
+    /// <summary>当前播放位置（秒）。由 500ms 定时器从宿主采样刷新。</summary>
+    public double PositionSec
+    {
+        get => _positionSec;
+        private set { if (SetField(ref _positionSec, value)) { OnPropertyChanged(nameof(PositionText)); OnPropertyChanged(nameof(ProgressRatio)); } }
+    }
+
+    private double _durationSec;
+    /// <summary>当前音源总时长（秒）。在线流媒体等长度未知时为 0（此时进度条禁用）。</summary>
+    public double DurationSec
+    {
+        get => _durationSec;
+        private set { if (SetField(ref _durationSec, value)) { OnPropertyChanged(nameof(DurationText)); OnPropertyChanged(nameof(HasProgress)); OnPropertyChanged(nameof(ProgressRatio)); } }
+    }
+
+    /// <summary>是否有可用的总时长（未知时进度条应禁用，对齐 WPF HasProgress）。</summary>
+    public bool HasProgress => DurationSec > 0;
+
+    /// <summary>播放进度 0~1（供 Slider Maximum=1 绑定）。无时长时为 0。</summary>
+    public double ProgressRatio => DurationSec > 0 ? Math.Clamp(PositionSec / DurationSec, 0, 1) : 0;
+
+    /// <summary>当前位置文本（mm:ss）。</summary>
+    public string PositionText => FormatTime(PositionSec);
+
+    /// <summary>总时长文本（mm:ss）；未知显示 --:--。</summary>
+    public string DurationText => DurationSec > 0 ? FormatTime(DurationSec) : "--:--";
+
+    private static string FormatTime(double sec)
+    {
+        if (sec < 0) sec = 0;
+        var ts = TimeSpan.FromSeconds(sec);
+        return ts.TotalHours >= 1 ? ts.ToString(@"h\:mm\:ss") : ts.ToString(@"m\:ss");
+    }
+
+    private readonly DispatcherTimer _progressTimer;
+
+    private void StartProgressTimer()
+    {
+        // 定时器已在构造函数建好并挂 Tick，这里只负责启停。
+        if (!_progressTimer.IsEnabled) _progressTimer.Start();
+    }
+
+    private void StopProgressTimer()
+    {
+        _progressTimer?.Stop();
+    }
+
+    private bool _isSeeking;
+
+    /// <summary>用户是否正在拖拽进度条。拖拽期间 500ms 定时器<b>不</b>回写位置，
+    /// 否则会出现「slider 刚被拖到某处、下一拍又被采样值拽回去」的抖动（对齐 WPF wasSeeking / IsSeeking）。</summary>
+    public bool IsSeeking
+    {
+        get => _isSeeking;
+        set => SetField(ref _isSeeking, value);
+    }
+
+    private void OnProgressTick(object? sender, EventArgs e)
+    {
+        var host = Host;
+        if (host is null) return;
+        DurationSec = host.DurationSec;
+        if (IsSeeking) return;          // 拖拽中：只刷新时长，不覆盖用户选中的位置
+        PositionSec = host.PositionSec;
+    }
+
+    /// <summary>迷你条/音乐页拖拽进度条跳转（对齐 WPF Seek）。
+    /// 拖拽过程中（<see cref="IsSeeking"/> 为 true）只更新界面不真正 seek，
+    /// 松手（<paramref name="commit"/> 为 true）才定位 —— 否则拖动会反复触发 seek 卡顿。</summary>
+    public void SeekTo(double ratio, bool commit = true)
+    {
+        var host = Host;
+        if (host is null || DurationSec <= 0) return;
+
+        var target = Math.Clamp(ratio, 0, 1) * DurationSec;
+        PositionSec = target;                       // 界面立即反映
+        if (commit) host.Seek(target);
+    }
 
     public string StatusText
     {

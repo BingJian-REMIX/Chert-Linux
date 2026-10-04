@@ -50,8 +50,8 @@
                     ToolTip.Tip="{Binding ModeText}"/>
             <StackPanel Orientation="Horizontal" Margin="12,0,0,0" VerticalAlignment="Center" Spacing="6">
               <TextBlock Text="🔊" VerticalAlignment="Center"/>
-              <Slider Minimum="0" Maximum="100" Width="140" Value="{Binding Volume}" VerticalAlignment="Center"/>
-              <TextBlock Text="{Binding Volume}" VerticalAlignment="Center"
+              <Slider Minimum="0" Maximum="100" Width="140" Value="{Binding Volume, Mode=TwoWay}" VerticalAlignment="Center"/>
+              <TextBlock Text="{Binding Volume, Mode=OneWay, StringFormat='{}{0}%'}" VerticalAlignment="Center"
                          Foreground="{DynamicResource SecondaryForeground}"/>
             </StackPanel>
           </StackPanel>

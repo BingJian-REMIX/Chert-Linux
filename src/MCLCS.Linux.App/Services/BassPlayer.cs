@@ -85,6 +85,47 @@ public sealed class BassPlayer : IMediaPlayer, IDisposable
             Bass.ChannelSetAttribute(_channel, ChannelAttribute.Volume, _lastVolume / 100f);
     }
 
+    /// <summary>当前播放位置（秒）。BASS 的 ChannelGetPosition 传 flag=0 即返回秒；
+    /// 未播放（_channel==0）或读取失败返回 0。</summary>
+    public double PositionSec
+    {
+        get
+        {
+            if (_channel == 0) return 0;
+            try { return Bass.ChannelGetPosition(_channel, 0) / 1000.0; }
+            catch { return 0; }
+        }
+    }
+
+    /// <summary>当前音源总时长（秒）。在线流媒体长度未知，BASS 返回 0 → 进度条自动禁用。</summary>
+    public double DurationSec
+    {
+        get
+        {
+            if (_channel == 0) return 0;
+            try
+            {
+                var len = Bass.ChannelGetLength(_channel, 0);
+                return len <= 0 ? 0 : len / 1000.0;
+            }
+            catch { return 0; }
+        }
+    }
+
+    /// <summary>跳转到指定位置（秒）。时长未知（在线流媒体）时忽略。</summary>
+    public void Seek(double seconds)
+    {
+        if (_channel == 0) return;
+        try
+        {
+            var len = Bass.ChannelGetLength(_channel, 0);
+            if (len <= 0) return;                 // 长度未知，无法定位
+            var target = (long)Math.Clamp(seconds, 0, len / 1000.0) * 1000;
+            Bass.ChannelSetPosition(_channel, target);
+        }
+        catch { /* 定位失败忽略 */ }
+    }
+
     private readonly SyncProcedure _endSync;
 
     private void OnEndSync(int handle, int channel, int data, IntPtr user)
