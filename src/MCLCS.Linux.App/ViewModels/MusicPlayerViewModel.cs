@@ -1,7 +1,10 @@
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Windows.Input;
 using Avalonia.Threading;
+using MCLCS.Core.Music;
 using MCLCS.Core.Mvvm;
 using MCLCS.Core.Profiles;
 using MCLCS.Core.Toolbox;
@@ -46,7 +49,7 @@ public class MusicPlayerViewModel : ObservableObject
 
     public ObservableCollection<Track> Tracks { get; } = new();
 
-    private string _sourceKind = "Local"; // Local / Online / McOst
+    private string _sourceKind = "Local"; // Local / Online / McOst / Client
     private bool _isPlaying;
     private Track? _currentTrack;
     private string _statusText = "未播放";
@@ -55,6 +58,99 @@ public class MusicPlayerViewModel : ObservableObject
     private string _onlineUrl = "";
     private bool _autoDuck = true;
     private bool _expanded;
+
+    // ===== 歌词（对齐 WPF：Core.Music.LyricEngine + LyricService 网易云源）=====
+
+    /// <summary>歌词引擎（单一实例，避免重复解析 LRC）。</summary>
+    public LyricEngine Lyric { get; } = new();
+
+    private readonly LyricService _lyricService = new();
+    private string _lyricText = "";
+    private int _lyricLineCount;
+
+    /// <summary>当前应显示的歌词文本（多行用换行分隔）。</summary>
+    public string LyricText
+    {
+        get => _lyricText;
+        private set => SetField(ref _lyricText, value);
+    }
+
+    /// <summary>当前应显示的歌词行数（0 = 无歌词，界面应隐藏歌词区）。</summary>
+    public int LyricLineCount
+    {
+        get => _lyricLineCount;
+        private set { if (SetField(ref _lyricLineCount, value)) OnPropertyChanged(nameof(HasLyric)); }
+    }
+
+    /// <summary>是否有歌词可显示（界面据此隐藏歌词区，无需弹提示）。</summary>
+    public bool HasLyric => LyricLineCount > 0;
+
+    // ===== 本地客户端模式（把客户端当遥控器，对齐 WPF 规格实现项 2 / 6.1）=====
+
+    private string _clientExePath = "";
+    private string _clientStatus = "";
+    private string _clientRunning = "";
+    private System.Diagnostics.Process? _clientProcess;
+
+    /// <summary>本地客户端模式设置（含容错归一）。</summary>
+    public MusicClientPrefs ClientPrefs
+    {
+        get
+        {
+            var p = ProfileStore.Load(GameConstants.DefaultGameRoot).MusicClient;
+            return (p ?? new MusicClientPrefs()).Normalized();
+        }
+    }
+
+    /// <summary>外部客户端可执行文件路径（空 = 尚未选择）。</summary>
+    public string ClientExePath
+    {
+        get => _clientExePath;
+        private set
+        {
+            if (SetField(ref _clientExePath, value))
+            {
+                OnPropertyChanged(nameof(ClientDisplayName));
+                OnPropertyChanged(nameof(HasClientExe));
+                SavePrefs();
+            }
+        }
+    }
+
+    /// <summary>是否已选定客户端程序（据此决定显示「选择程序」还是「启动」）。</summary>
+    public bool HasClientExe => !string.IsNullOrWhiteSpace(_clientExePath);
+
+    /// <summary>「本地客户端模式」入口是否可用：总开关关闭时直接隐藏入口，
+    /// 用户不会点到一个注定被拒的模式（对齐 WPF）。</summary>
+    public bool ClientModeAvailable => ClientPrefs.Enabled;
+
+    /// <summary>客户端显示名（取文件名去扩展名）。</summary>
+    public string ClientDisplayName
+    {
+        get
+        {
+            if (!HasClientExe) return "";
+            try { return Path.GetFileNameWithoutExtension(_clientExePath); }
+            catch { return _clientExePath; }
+        }
+    }
+
+    /// <summary>客户端模式状态说明（状态卡片正文）。</summary>
+    public string ClientStatus
+    {
+        get => _clientStatus;
+        private set => SetField(ref _clientStatus, value);
+    }
+
+    /// <summary>由启动器拉起 / 正在运行的客户端进程（状态卡片副文本）。</summary>
+    public string ClientRunning
+    {
+        get => _clientRunning;
+        private set => SetField(ref _clientRunning, value);
+    }
+
+    /// <summary>当前是否处于本地客户端模式（启动器不放音，播放由外部客户端负责）。</summary>
+    public bool IsLocalClient => SourceKind == "Client";
     private string _mcOstStatus = "";
 
     private IMediaPlayer? _host;
@@ -94,6 +190,9 @@ public class MusicPlayerViewModel : ObservableObject
         AddOnlineCommand = new RelayCommand(_ => AddOnline());
         ScanMcOstCommand = new RelayCommand(_ => ScanMcOst());
         PlayTrackCommand = new RelayCommand(p => PlayTrack(p));
+        LaunchClientCommand = new RelayCommand(_ => LaunchClient());
+        BrowseClientCommand = new RelayCommand(_ => BrowseClientExe());
+        SyncClientTrackCommand = new RelayCommand(_ => SyncClientLyric());
         ExpandCommand = new RelayCommand(_ => Expanded = !Expanded);
 
         var profile = ProfileStore.Load(GameConstants.DefaultGameRoot);
@@ -103,6 +202,13 @@ public class MusicPlayerViewModel : ObservableObject
         // 进度心跳：宿主注入后才有意义，故此处只备好定时器，实际启动见 Host setter。
         _progressTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
         _progressTimer.Tick += OnProgressTick;
+
+        // 本地客户端模式：恢复上次选择的客户端路径（仅总开关开启时有意义）
+        _clientExePath = profile.MusicClientExePath ?? "";
+        if (HasClientExe)
+            ClientStatus = $"已选择客户端：{ClientDisplayName}";
+        else if (ClientPrefs.Enabled)
+            ClientStatus = "尚未选择客户端程序";
     }
 
     public ICommand PlayPauseCommand { get; }
@@ -114,6 +220,15 @@ public class MusicPlayerViewModel : ObservableObject
     public ICommand AddOnlineCommand { get; }
     public ICommand ScanMcOstCommand { get; }
     public ICommand PlayTrackCommand { get; }
+
+    /// <summary>拉起外部客户端（把客户端当遥控器）。</summary>
+    public ICommand LaunchClientCommand { get; }
+
+    /// <summary>选择客户端可执行文件。</summary>
+    public ICommand BrowseClientCommand { get; }
+
+    /// <summary>手动重新拉取当前曲目的在线歌词。</summary>
+    public ICommand SyncClientTrackCommand { get; }
     public ICommand ExpandCommand { get; }
 
     public string SourceKind
@@ -150,6 +265,8 @@ public class MusicPlayerViewModel : ObservableObject
                 OnPropertyChanged(nameof(CurrentTrackDisplay));
                 OnPropertyChanged(nameof(CurrentTrackMetaText));
                 OnPropertyChanged(nameof(HasTrack));
+                // 换曲即换歌词：本地 .lrc 优先，读不到再走在线 API
+                LoadLyricForCurrentTrack();
             }
         }
     }
@@ -227,6 +344,87 @@ public class MusicPlayerViewModel : ObservableObject
         DurationSec = host.DurationSec;
         if (IsSeeking) return;          // 拖拽中：只刷新时长，不覆盖用户选中的位置
         PositionSec = host.PositionSec;
+
+        // 歌词与进度同频更新（500ms 一跳，逐行切换观感与音乐歌词一致）
+        RefreshLyricTexts();
+    }
+
+    /// <summary>歌词固定方式跟随设置（切换隔离等场景下实时生效）。</summary>
+    private LyricPinMode LyricPinModeSetting => ClientPrefs.LyricPin;
+
+    /// <summary>为当前曲目载入歌词：本地优先读同目录 .lrc，读不到再走在线 API。</summary>
+    private void LoadLyricForCurrentTrack()
+    {
+        try
+        {
+            // 本地客户端模式下，歌词是否显示由「客户端模式下仍用 API 获取歌词」决定
+            if (IsLocalClient && !ClientPrefs.LyricEnabled) { Lyric.Clear(); RefreshLyricTexts(); return; }
+
+            Lyric.PinMode = LyricPinModeSetting;
+
+            // 本地客户端模式：文件在客户端自己的音乐库里，本地没有 .lrc —— 走在线 API
+            if (IsLocalClient)
+            {
+                RefreshLyricTexts();
+                _ = SyncLyricFromApiAsync();
+                return;
+            }
+
+            Lyric.TryLoadFromFile(CurrentTrack?.Path);
+            RefreshLyricTexts();
+            // 本地没有 .lrc 时异步补一次在线歌词
+            if (!Lyric.HasLyric) _ = SyncLyricFromApiAsync();
+        }
+        catch
+        {
+            Lyric.Clear();
+            RefreshLyricTexts();
+        }
+    }
+
+    /// <summary>
+    /// 拉取当前曲目的在线歌词（网易云源，标题/歌手分开传）。
+    /// 命中后写入引擎并刷新显示；失败静默 —— 歌词属装饰性，不该弹提示打扰用户。
+    /// </summary>
+    private async Task SyncLyricFromApiAsync()
+    {
+        var track = CurrentTrack;
+        if (track is null) return;
+        if (string.IsNullOrWhiteSpace(track.Title)) return;
+
+        try
+        {
+            var lrc = await _lyricService.GetLrcAsync(track.Title, track.Artist).ConfigureAwait(true);
+            if (string.IsNullOrWhiteSpace(lrc)) return;
+            // 曲目可能已切换，确认仍是同一首再应用
+            if (!ReferenceEquals(track, CurrentTrack)) return;
+            Lyric.Load("在线", LyricEngine.ParseLrc(lrc));
+            RefreshLyricTexts();
+        }
+        catch
+        {
+            // 在线歌词失败：保留本地 .lrc 结果或维持无歌词，不打扰用户
+        }
+    }
+
+    /// <summary>按当前进度刷新歌词显示行（行数由「歌词固定方式」决定）。
+    /// 行内容不变时**不通知**，避免每 500ms 重建控件造成闪烁。</summary>
+    private void RefreshLyricTexts()
+    {
+        if (IsLocalClient && !ClientPrefs.LyricEnabled)
+        {
+            LyricText = "";
+            LyricLineCount = 0;
+            return;
+        }
+
+        try { Lyric.PinMode = LyricPinModeSetting; } catch { /* 设置异常不阻塞显示 */ }
+
+        var lines = Lyric.GetDisplayLines(PositionSec);
+        var text = string.Join(Environment.NewLine, lines.Select(l => l.Text));
+        if (!string.Equals(text, LyricText, StringComparison.Ordinal))
+            LyricText = text;
+        LyricLineCount = lines.Count;
     }
 
     /// <summary>迷你条/音乐页拖拽进度条跳转（对齐 WPF Seek）。
@@ -306,12 +504,114 @@ public class MusicPlayerViewModel : ObservableObject
 
     private void SetSource(string? kind)
     {
-        if (kind is "Local" or "Online" or "McOst")
+        if (kind is not ("Local" or "Online" or "McOst" or "Client")) return;
+
+        // 本地客户端模式总开关关闭时直接拒绝（用户不该点到一个注定被拒的模式）
+        if (kind == "Client" && !ClientPrefs.Enabled)
         {
-            SourceKind = kind!;
-            if (kind == "McOst" && McOstGroups.Count == 0)
-                ScanMcOst();
+            StatusText = "本地客户端模式未启用，请先在「设置 → 音乐」中开启";
+            return;
         }
+
+        SourceKind = kind!;
+        if (kind == "McOst" && McOstGroups.Count == 0)
+            ScanMcOst();
+
+        if (kind == "Client")
+        {
+            // 防叠音不变量（对齐 WPF）：本地客户端模式下启动器不放音 ——
+            // 停掉自己的音源并清空播放列表，避免与外部客户端同时出声。
+            StopPlaybackForClientMode();
+            RefreshLyricTexts();   // 按「客户端模式下仍用 API 取歌词」决定显隐
+            StatusText = "本地客户端模式：音乐由外部客户端播放，启动器不再输出音频";
+
+            // 切回客户端模式时若客户端未运行，替用户把它拉起来（当遥控器用）
+            if (!IsClientRunning) LaunchClient();
+        }
+    }
+
+    /// <summary>客户端进程是否仍在运行。</summary>
+    public bool IsClientRunning
+    {
+        get
+        {
+            try { return _clientProcess is { HasExited: false }; }
+            catch { return false; }
+        }
+    }
+
+    /// <summary>进入本地客户端模式前停掉自身音源（防叠音）。</summary>
+    private void StopPlaybackForClientMode()
+    {
+        try { Host?.Stop(); } catch { /* 宿主不可用时忽略 */ }
+        IsPlaying = false;
+        Tracks.Clear();
+        CurrentTrack = null;
+        Lyric.Clear();
+        LyricText = "";
+        LyricLineCount = 0;
+    }
+
+    /// <summary>拉起外部客户端（把客户端当遥控器）。已运行则不重复拉起。</summary>
+    private void LaunchClient()
+    {
+        if (!HasClientExe)
+        {
+            ClientStatus = "尚未选择客户端程序，请先在下方「选择程序」";
+            return;
+        }
+        if (IsClientRunning) { ClientStatus = "客户端已在运行"; return; }
+
+        try
+        {
+            var psi = new ProcessStartInfo
+            {
+                FileName = ClientExePath,
+                UseShellExecute = true,      // Linux 下 .desktop/AppImage 需经 shell 拉起
+            };
+            _clientProcess = Process.Start(psi);
+            ClientRunning = $"已启动：{ClientDisplayName}";
+            ClientStatus = "启动器作为遥控器显示信息，播放由客户端负责";
+        }
+        catch (Exception ex)
+        {
+            _clientProcess = null;
+            ClientRunning = "";
+            ClientStatus = $"启动客户端失败：{ex.Message}";
+        }
+    }
+
+    /// <summary>打开文件选择器让用户挑选客户端可执行文件（Avalonia StorageProvider 异步版）。</summary>
+    private async void BrowseClientExe()
+    {
+        try
+        {
+            var picked = await Services.UIService.PickFileAsync(
+                title: "选择音乐客户端程序",
+                filterPattern: "*.exe;*.AppImage;*.sh").ConfigureAwait(true);
+            if (string.IsNullOrWhiteSpace(picked)) return;
+            ClientExePath = picked!;
+            ClientStatus = HasClientExe ? "已选择客户端，可启动" : "尚未选择客户端程序";
+        }
+        catch (Exception ex)
+        {
+            ClientStatus = $"选择失败：{ex.Message}";
+        }
+    }
+
+    /// <summary>手动重新拉取当前曲目的在线歌词（设置页「客户端模式仍用 API 歌词」旁的重试）。</summary>
+    private void SyncClientLyric() => _ = SyncLyricFromApiAsync();
+
+    /// <summary>
+    /// 设置页改了本地客户端相关设置后由 VM 调用：刷新入口可用性与歌词显隐
+    /// （对齐 WPF <c>OnClientPrefsChanged</c>）。
+    /// </summary>
+    public void OnClientPrefsChanged()
+    {
+        OnPropertyChanged(nameof(ClientModeAvailable));
+        OnPropertyChanged(nameof(HasClientExe));
+        OnPropertyChanged(nameof(ClientDisplayName));
+        RefreshLyricTexts();
     }
 
     private void PlayPause()

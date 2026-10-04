@@ -1,0 +1,116 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:MCLCS.Linux.App.ViewModels"
+             x:Class="MCLCS.Linux.App.Views.Pages.MusicSettingsView"
+             x:DataType="vm:MusicSettingsViewModel">
+
+  <ScrollViewer>
+    <StackPanel Spacing="16" MaxWidth="820" HorizontalAlignment="Left">
+
+      <!-- 页面标题（与其它设置子页一致） -->
+      <TextBlock Text="音乐" FontSize="16" FontWeight="Bold" Margin="0,0,0,4"
+                 Foreground="{DynamicResource PrimaryForeground}"/>
+
+      <!-- 播放偏好 -->
+      <StackPanel Spacing="10">
+        <WrapPanel>
+          <ToggleSwitch IsChecked="{Binding MusicAutoDuck, Mode=TwoWay}"
+                        Content="游戏启动时自动降低音乐音量"
+                        Foreground="{DynamicResource PrimaryForeground}"/>
+        </WrapPanel>
+        <WrapPanel>
+          <ToggleSwitch IsChecked="{Binding MusicResumeOnLaunch, Mode=TwoWay}"
+                        Content="启动器启动时自动续播上次音乐"
+                        Foreground="{DynamicResource PrimaryForeground}"/>
+        </WrapPanel>
+      </StackPanel>
+
+      <!-- 本地客户端模式：把外部音乐客户端当遥控器 -->
+      <Border Padding="12,10" CornerRadius="8"
+              Background="{DynamicResource CardBackground}"
+              BorderBrush="{DynamicResource ControlBorder}" BorderThickness="1">
+        <StackPanel Spacing="4">
+          <TextBlock Text="本地客户端模式" FontWeight="Bold" FontSize="13"
+                     Foreground="{DynamicResource PrimaryForeground}"/>
+          <TextBlock Text="启用后启动器不再输出音频，只作为遥控器显示曲目信息与歌词；播放由所选客户端负责。关闭时该入口在音乐页隐藏。"
+                     FontSize="11" Opacity="0.7" TextWrapping="Wrap" Margin="0,0,0,8"
+                     Foreground="{DynamicResource SecondaryForeground}"/>
+
+          <!-- ① 总开关 -->
+          <WrapPanel>
+            <ToggleSwitch IsChecked="{Binding ClientModeEnabled, Mode=TwoWay}"
+                          Content="启用本地客户端模式"
+                          Foreground="{DynamicResource PrimaryForeground}"/>
+          </WrapPanel>
+
+          <StackPanel Spacing="10" Margin="0,10,0,0" IsEnabled="{Binding ClientModeEnabled}">
+            <!-- ② 客户端程序 + 宽限期 -->
+            <StackPanel Spacing="6">
+              <TextBlock Text="客户端程序" FontSize="12"
+                         Foreground="{DynamicResource PrimaryForeground}"/>
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <TextBox Width="380" IsReadOnly="True" Text="{Binding ClientExePath, Mode=OneWay}"
+                         Padding="6,4" VerticalAlignment="Center"/>
+                <Button Content="选择程序" Command="{Binding BrowseClientCommand}"
+                        VerticalAlignment="Center" Classes="modal-btn"/>
+              </StackPanel>
+              <TextBlock Text="未选择时无法启动客户端；启动器会记住上次选择。"
+                         FontSize="11" Opacity="0.65" TextWrapping="Wrap"
+                         Foreground="{DynamicResource SecondaryForeground}"/>
+            </StackPanel>
+
+            <StackPanel Spacing="6">
+              <StackPanel Orientation="Horizontal" Spacing="10">
+                <TextBlock Text="客户端宽限期" VerticalAlignment="Center" Width="110"
+                           Foreground="{DynamicResource PrimaryForeground}"/>
+                <Slider Minimum="0" Maximum="30" Width="220"
+                        Value="{Binding ClientGraceMinutes, Mode=TwoWay}"
+                        IsEnabled="{Binding ClientModeEnabled}"
+                        VerticalAlignment="Center"/>
+                <TextBlock Text="{Binding ClientGraceText}" VerticalAlignment="Center"
+                           Opacity="0.8" FontSize="12"/>
+              </StackPanel>
+              <TextBlock Text="播放器切回本地/API 且客户端全程暂停超过该时长后，自动结束客户端进程。设为「不自动关闭」则永不结束。"
+                         FontSize="11" Opacity="0.65" TextWrapping="Wrap"
+                         Foreground="{DynamicResource SecondaryForeground}"/>
+            </StackPanel>
+
+            <!-- ③ 歌词固定方式 -->
+            <StackPanel Spacing="6">
+              <StackPanel Orientation="Horizontal" Spacing="10">
+                <TextBlock Text="歌词固定方式" VerticalAlignment="Center" Width="110"
+                           Foreground="{DynamicResource PrimaryForeground}"/>
+                <ComboBox Width="220" SelectedIndex="{Binding LyricPinModeIndex, Mode=TwoWay}">
+                  <ComboBoxItem Content="仅当前行"/>
+                  <ComboBoxItem Content="当前行 + 下一行"/>
+                  <ComboBoxItem Content="上一行 + 当前行 + 下一行"/>
+                </ComboBox>
+              </StackPanel>
+              <TextBlock Text="只影响歌词区显示几行，不影响歌词解析与查找。"
+                         FontSize="11" Opacity="0.65" TextWrapping="Wrap"
+                         Foreground="{DynamicResource SecondaryForeground}"/>
+            </StackPanel>
+
+            <!-- ④ 客户端模式下仍用 API 获取歌词 -->
+            <StackPanel Spacing="6">
+              <WrapPanel>
+                <ToggleSwitch IsChecked="{Binding ClientModeLyricEnabled, Mode=TwoWay}"
+                              Content="客户端模式下仍用 API 获取歌词"
+                              Foreground="{DynamicResource PrimaryForeground}"/>
+              </WrapPanel>
+              <TextBlock Text="关闭后进入客户端模式时隐藏歌词区（本地没有 .lrc 文件）。"
+                         FontSize="11" Opacity="0.65" TextWrapping="Wrap"
+                         Foreground="{DynamicResource SecondaryForeground}"/>
+            </StackPanel>
+          </StackPanel>
+        </StackPanel>
+      </Border>
+
+      <TextBlock Text="{Binding Status}" FontSize="11" Opacity="0.8" TextWrapping="Wrap"
+                 Foreground="{DynamicResource SecondaryForeground}"/>
+
+      <!-- 无需「保存」按钮：所有项改一下即写盘并即时生效（与 WPF 一致） -->
+
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

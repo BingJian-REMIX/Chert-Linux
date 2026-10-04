@@ -29,6 +29,10 @@
                 Classes="modal-btn"/>
         <Button Content="MC 原声" Command="{Binding SetSourceCommand}" CommandParameter="McOst"
                 Classes="modal-btn"/>
+        <!-- 本地客户端模式（当遥控器）：总开关关闭时隐藏入口，用户不会点到注定被拒的模式 -->
+        <Button Content="本地客户端" Command="{Binding SetSourceCommand}" CommandParameter="Client"
+                Classes="modal-btn"
+                IsVisible="{Binding ClientModeAvailable}"/>
       </StackPanel>
 
       <!-- 当前曲目 + 传输控制 -->
@@ -57,6 +61,64 @@
           </StackPanel>
           <ToggleSwitch IsChecked="{Binding AutoDuck}" Content="游戏内语音/音效时自动降低音乐音量"
                         HorizontalAlignment="Left" OffContent="" OnContent=""/>
+
+          <!-- 播放进度：位置 / 拖拽跳转 / 总时长。时长未知（在线流媒体）时禁用。 -->
+          <Grid ColumnDefinitions="Auto,*,Auto" VerticalAlignment="Center">
+            <TextBlock Grid.Column="0" Text="{Binding PositionText}" FontSize="11" Margin="0,0,8,0"
+                       VerticalAlignment="Center" Foreground="{DynamicResource SecondaryForeground}"/>
+            <Slider Grid.Column="1" Minimum="0" Maximum="1"
+                    Value="{Binding ProgressRatio, Mode=TwoWay}"
+                    IsEnabled="{Binding HasProgress}"
+                    PointerPressed="Seek_PointerPressed"
+                    PointerReleased="Seek_PointerReleased"
+                    VerticalAlignment="Center"/>
+            <TextBlock Grid.Column="2" Text="{Binding DurationText}" FontSize="11" Margin="8,0,0,0"
+                       VerticalAlignment="Center" Foreground="{DynamicResource SecondaryForeground}"/>
+          </Grid>
+        </StackPanel>
+      </Border>
+
+      <!-- 歌词区：行数随「歌词固定方式」变化，逐行淡入淡出 + 轻微上移（对齐 WPF LyricBox） -->
+      <Border MinHeight="64" Padding="14,10" CornerRadius="8"
+              Background="{DynamicResource CardBackground}"
+              BorderBrush="{DynamicResource ControlBorder}" BorderThickness="1"
+              IsVisible="{Binding HasLyric}">
+        <TextBlock x:Name="LyricBox" Text="{Binding LyricText}" FontSize="13" LineHeight="22"
+                   Opacity="0.92" TextWrapping="Wrap" TextAlignment="Center"
+                   VerticalAlignment="Center" HorizontalAlignment="Stretch">
+          <TextBlock.Transitions>
+            <Transitions>
+              <DoubleTransition Property="Opacity" Duration="{StaticResource MotionFast}"/>
+            </Transitions>
+          </TextBlock.Transitions>
+        </TextBlock>
+      </Border>
+
+      <!-- 无歌词时静默隐藏，不弹错误提示 -->
+      <TextBlock Text="暂无歌词（本地无 .lrc 且在线未匹配到）" FontSize="11" Opacity="0.55"
+                 TextAlignment="Center"
+                 IsVisible="{Binding HasLyric, Converter={StaticResource InvBoolToVis}}"/>
+
+      <!-- 本地客户端模式状态卡片：启动器当遥控器，播放由外部客户端负责 -->
+      <Border IsVisible="{Binding IsLocalClient}" Padding="14,12" CornerRadius="8"
+              Background="{DynamicResource CardBackground}"
+              BorderBrush="{DynamicResource ControlBorder}" BorderThickness="1">
+        <StackPanel Spacing="8">
+          <TextBlock Text="本地客户端模式" FontWeight="Bold" FontSize="14"
+                     Foreground="{DynamicResource PrimaryForeground}"/>
+          <TextBlock Text="启动器作为遥控器显示信息，播放与进度由客户端负责。"
+                     FontSize="11" Opacity="0.7" TextWrapping="Wrap"
+                     Foreground="{DynamicResource SecondaryForeground}"/>
+          <TextBlock Text="{Binding ClientStatus}" FontSize="12" TextWrapping="Wrap"
+                     Foreground="{DynamicResource PrimaryForeground}"/>
+          <TextBlock Text="{Binding ClientRunning}" FontSize="11" Opacity="0.85" TextWrapping="Wrap"
+                     Foreground="{DynamicResource SecondaryForeground}"/>
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <Button Content="选择程序" Command="{Binding BrowseClientCommand}" Classes="modal-btn"/>
+            <Button Content="启动客户端" Command="{Binding LaunchClientCommand}"
+                    IsEnabled="{Binding HasClientExe}" Classes="modal-btn primary"/>
+            <Button Content="重新拉取歌词" Command="{Binding SyncClientTrackCommand}" Classes="modal-btn"/>
+          </StackPanel>
         </StackPanel>
       </Border>
 

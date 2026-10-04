@@ -193,9 +193,20 @@ public class LauncherProfile
     [JsonPropertyName("musicVolume")]
     public int MusicVolume { get; set; } = 60;
 
+    /// <summary>
+    /// 本地客户端模式设置（总开关 / 宽限期 / 歌词固定方式 / 客户端模式歌词开关）。
+    /// 读出时由 <see cref="ProfileStore.Load"/> 调 <see cref="MusicClientPrefs.Normalized"/> 容错。
+    /// </summary>
+    [JsonPropertyName("musicClient")]
+    public MusicClientPrefs MusicClient { get; set; } = new();
+
     /// <summary>启动时自动断点续播：恢复上次停下的曲目与位置。</summary>
     [JsonPropertyName("musicResumeOnLaunch")]
     public bool MusicResumeOnLaunch { get; set; }
+
+    /// <summary>本地客户端模式下用户选择的音乐客户端可执行文件路径（当遥控器用）。</summary>
+    [JsonPropertyName("musicClientExePath")]
+    public string MusicClientExePath { get; set; } = "";
 
     /// <summary>断点续播：上次播放的本地曲目路径（空表示无）。</summary>
     [JsonPropertyName("musicLastTrack")]
