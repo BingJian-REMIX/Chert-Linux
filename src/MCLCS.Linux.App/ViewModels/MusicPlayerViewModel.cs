@@ -170,11 +170,120 @@ public class MusicPlayerViewModel : ObservableObject
         }
     }
 
-    public ObservableCollection<string> OnlinePresets { get; } = new()
+    /// <summary>
+    /// 在线音源服务（<see cref="MusicSourceMode.Api"/>：由启动器自己去取流并播放）。
+    /// <para>与歌词用的 LyricService 是两套东西：那个只负责歌词文本，
+    /// 这个负责搜索 / 歌单 / 换播放直链，两者的数据源可以完全不同。</para>
+    /// </summary>
+    public OnlineMusicService Online { get; }
+
+    /// <summary>在线音源是否可用（总开关打开且已填服务地址）。</summary>
+    public bool ApiEnabled => Online.IsAvailable;
+
+    /// <summary>搜索到的曲目。</summary>
+    public ObservableCollection<OnlineTrack> OnlineResults { get; } = new();
+
+    /// <summary>搜索到的公开歌单（数据源不支持搜索时恒为空）。</summary>
+    public ObservableCollection<OnlinePlaylist> OnlinePlaylists { get; } = new();
+
+    /// <summary>「我的歌单」（需登录且数据源支持登录）。</summary>
+    public ObservableCollection<OnlinePlaylist> MyPlaylists { get; } = new();
+
+    private string _onlineKeyword = "";
+    private string _playlistIdInput = "";
+    private bool _onlineBusy;
+    private string _onlineStatus = "";
+    private string _loginQrDataUrl = "";
+    private bool _loginPanelVisible;
+    private string _loginStatusText = "";
+    private string? _loginKey;
+    private CancellationTokenSource? _loginCts;
+    private CancellationTokenSource? _onlineLyricCts;
+
+    /// <summary>当前正在播的在线曲目（在线歌词刷新要用它的 id 去取歌词）。</summary>
+    private OnlineTrack? _currentOnline;
+
+    /// <summary>搜索关键词。</summary>
+    public string OnlineKeyword
     {
-        "https://stream.example.com/minecraft-radio",
-        "https://radio.example.org/ambient"
-    };
+        get => _onlineKeyword;
+        set => SetField(ref _onlineKeyword, value);
+    }
+
+    /// <summary>歌单 ID 输入框内容（Meting 协议没有「搜歌单」能力，只能手填 ID）。</summary>
+    public string PlaylistIdInput
+    {
+        get => _playlistIdInput;
+        set => SetField(ref _playlistIdInput, value);
+    }
+
+    public bool OnlineBusy
+    {
+        get => _onlineBusy;
+        private set
+        {
+            if (SetField(ref _onlineBusy, value)) OnPropertyChanged(nameof(OnlineIdle));
+        }
+    }
+
+    /// <summary>「非忙」：按钮 IsEnabled 绑它比再写一个反向转换器省事。</summary>
+    public bool OnlineIdle => !_onlineBusy;
+
+    /// <summary>在线音源操作的结果提示（按钮/列表下方的那行小字）。</summary>
+    public string OnlineStatus
+    {
+        get => _onlineStatus;
+        private set => SetField(ref _onlineStatus, value);
+    }
+
+    /// <summary>当前数据源是否支持扫码登录。</summary>
+    public bool CanOnlineLogin => Online.CanLogin;
+
+    public bool IsOnlineLoggedIn => Online.IsLoggedIn;
+
+    /// <summary>账户展示文本（没昵称时退回「已登录 / 未登录」）。</summary>
+    public string ApiAccountLabel
+    {
+        get
+        {
+            var nick = Online.Account?.Nickname;
+            if (!string.IsNullOrWhiteSpace(nick)) return nick!;
+            return Online.IsLoggedIn ? "已登录" : "未登录";
+        }
+    }
+
+    /// <summary>二维码图片的 data URL；界面层解码成各自的图像类型。</summary>
+    public string LoginQrDataUrl
+    {
+        get => _loginQrDataUrl;
+        private set => SetField(ref _loginQrDataUrl, value);
+    }
+
+    public bool LoginPanelVisible
+    {
+        get => _loginPanelVisible;
+        private set => SetField(ref _loginPanelVisible, value);
+    }
+
+    public string LoginStatusText
+    {
+        get => _loginStatusText;
+        private set => SetField(ref _loginStatusText, value);
+    }
+
+    /// <summary>搜索在线歌曲。</summary>
+    public ICommand SearchOnlineCommand { get; }
+
+    /// <summary>导入在线歌单（参数为 <see cref="OnlinePlaylist"/>；留空则取输入框里的 ID）。</summary>
+    public ICommand ImportPlaylistCommand { get; }
+
+    /// <summary>点播一条搜索结果。</summary>
+    public ICommand PlayOnlineTrackCommand { get; }
+
+    public ICommand StartApiLoginCommand { get; }
+    public ICommand CancelApiLoginCommand { get; }
+    public ICommand ApiLogoutCommand { get; }
+    public ICommand RefreshMyPlaylistsCommand { get; }
 
     /// <summary>MC 原声按分类分组（扫描后填充）。</summary>
     public ObservableCollection<McOstGroup> McOstGroups { get; } = new();
@@ -195,6 +304,15 @@ public class MusicPlayerViewModel : ObservableObject
         SyncClientTrackCommand = new RelayCommand(_ => SyncClientLyric());
         ExpandCommand = new RelayCommand(_ => Expanded = !Expanded);
 
+        // ===== 在线音源（搜索 / 歌单 / 登录），对齐 WPF =====
+        SearchOnlineCommand = new AsyncRelayCommand(_ => SearchOnlineAsync());
+        ImportPlaylistCommand = new AsyncRelayCommand(p => ImportPlaylistAsync(p as OnlinePlaylist));
+        PlayOnlineTrackCommand = new AsyncRelayCommand(p => PlayOnlineTrackAsync(p as OnlineTrack));
+        StartApiLoginCommand = new AsyncRelayCommand(_ => StartApiLoginAsync());
+        CancelApiLoginCommand = new RelayCommand(_ => CancelApiLogin());
+        ApiLogoutCommand = new RelayCommand(_ => ApiLogout());
+        RefreshMyPlaylistsCommand = new AsyncRelayCommand(_ => LoadMyPlaylistsAsync());
+
         var profile = ProfileStore.Load(GameConstants.DefaultGameRoot);
         _autoDuck = profile.MusicAutoDuck;
         _volume = profile.MusicVolume;
@@ -209,6 +327,21 @@ public class MusicPlayerViewModel : ObservableObject
             ClientStatus = $"已选择客户端：{ClientDisplayName}";
         else if (ClientPrefs.Enabled)
             ClientStatus = "尚未选择客户端程序";
+
+        // 在线音源：Reload/构造内部会从（已混淆的）凭证里恢复登录态。
+        // 放在构造函数末尾而不是用到再说 —— 否则第一次打开音乐页时登录态是空的。
+        Online = new OnlineMusicService(profile.MusicApi);
+        Online.LoginStateChanged += () => RunOnUi(UpdateLoginUi);
+        if (Online.IsLoggedIn && Online.CanLogin)
+        {
+            // 昵称/头像要联网才拿得到，放后台补：**不要**在这里 await，
+            // 构造函数里 await 网络请求会把启动流程拖住。
+            _ = Task.Run(async () =>
+            {
+                if (await Online.RefreshAccountAsync()) PersistApiCredential();
+                await LoadMyPlaylistsAsync();
+            });
+        }
     }
 
     public ICommand PlayPauseCommand { get; }
@@ -361,6 +494,14 @@ public class MusicPlayerViewModel : ObservableObject
             if (IsLocalClient && !ClientPrefs.LyricEnabled) { Lyric.Clear(); RefreshLyricTexts(); return; }
 
             Lyric.PinMode = LyricPinModeSetting;
+
+            // 在线曲目的 .lrc 不在本地，只能从数据源或在线歌词服务取
+            if (IsOnline && _currentOnline is not null)
+            {
+                RefreshLyricTexts();
+                _ = LoadOnlineLyricAsync(_currentOnline);
+                return;
+            }
 
             // 本地客户端模式：文件在客户端自己的音乐库里，本地没有 .lrc —— 走在线 API
             if (IsLocalClient)
@@ -781,5 +922,329 @@ public class MusicPlayerViewModel : ObservableObject
             ProfileStore.Save(p);
         }
         catch { /* 忽略持久化失败 */ }
+    }
+
+    // ===== 在线音源（规格：MusicSourceMode.Api）—— 对齐 WPF MusicPlayerViewModel =====
+
+    /// <summary>把后台线程的 UI 通知送回 UI 线程（事件回调可能来自任意线程）。</summary>
+    private static void RunOnUi(Action action)
+    {
+        try
+        {
+            if (Dispatcher.UIThread.CheckAccess()) action();
+            else Dispatcher.UIThread.Post(action);
+        }
+        catch { /* 应用退出时的回调无所谓 */ }
+    }
+
+    private async Task SearchOnlineAsync()
+    {
+        if (OnlineBusy) return;
+        if (!ApiEnabled) { OnlineStatus = "在线音源未启用"; return; }
+
+        var kw = (OnlineKeyword ?? "").Trim();
+        if (kw.Length == 0) { OnlineStatus = "请输入歌曲名"; return; }
+
+        OnlineBusy = true;
+        OnlineStatus = "搜索中…";
+        try
+        {
+            var songs = await Online.SearchSongsAsync(kw);
+            OnlineResults.Clear();
+            foreach (var s in songs) OnlineResults.Add(s);
+            OnlineStatus = songs.Count > 0 ? $"找到 {songs.Count} 首" : "没有找到匹配的歌曲";
+
+            OnlinePlaylists.Clear();
+            if (Online.CanSearchPlaylists)
+            {
+                foreach (var pl in await Online.SearchPlaylistsAsync(kw)) OnlinePlaylists.Add(pl);
+            }
+        }
+        catch (MusicApiException ex)
+        {
+            OnlineStatus = ex.Message;
+        }
+        catch
+        {
+            OnlineStatus = "搜索失败，请检查网络或数据源配置";
+        }
+        finally { OnlineBusy = false; }
+    }
+
+    /// <summary>
+    /// 导入歌单到播放列表。每首都必须再取一次直链 —— 直链有有效期且与音质绑定，
+    /// 现在取好是为了让列表里的曲目随时能点播。
+    /// </summary>
+    private async Task ImportPlaylistAsync(OnlinePlaylist? playlist)
+    {
+        if (OnlineBusy) return;
+        if (!ApiEnabled) { OnlineStatus = "在线音源未启用"; return; }
+
+        var id = playlist?.Id ?? (PlaylistIdInput ?? "").Trim();
+        if (string.IsNullOrWhiteSpace(id)) { OnlineStatus = "请先搜索并选择一个歌单，或填写歌单 ID"; return; }
+
+        OnlineBusy = true;
+        OnlineStatus = "正在读取歌单…";
+        try
+        {
+            var tracks = await Online.GetPlaylistTracksAsync(id);
+            if (tracks.Count == 0) { OnlineStatus = "歌单为空或 ID 不正确"; return; }
+
+            OnlineStatus = $"歌单共 {tracks.Count} 首，正在获取播放地址…";
+            var added = await MaterializeAsync(tracks);
+            OnlineStatus = added > 0
+                ? $"已导入 {added} 首" + (added < tracks.Count ? $"（{tracks.Count - added} 首因版权无法获取）" : "")
+                : "没有可播放的曲目（多为版权限制）";
+        }
+        catch (MusicApiException ex) { OnlineStatus = ex.Message; }
+        catch { OnlineStatus = "读取歌单失败"; }
+        finally { OnlineBusy = false; }
+    }
+
+    /// <summary>
+    /// 并发换直链、收集完再按原顺序加入播放列表。
+    /// <para>为什么「先并发取 URL，最后统一 Add」：<see cref="MusicPlaylist"/> 不是线程安全的，
+    /// 并发 Add 会打乱 CurrentIndex 语义；而 URL 请求是纯网络，并行能省下大量等待。</para>
+    /// </summary>
+    private async Task<int> MaterializeAsync(IReadOnlyList<OnlineTrack> tracks, int maxParallel = 8)
+    {
+        var urls = new string?[tracks.Count];
+        using var sem = new SemaphoreSlim(maxParallel);
+
+        await Task.WhenAll(tracks.Select((t, i) => Task.Run(async () =>
+        {
+            await sem.WaitAsync();
+            try { urls[i] = await Online.GetPlayableUrlAsync(t); }
+            catch { urls[i] = null; }
+            finally { sem.Release(); }
+        })));
+
+        var added = 0;
+        for (var i = 0; i < tracks.Count; i++)
+        {
+            if (string.IsNullOrWhiteSpace(urls[i])) continue;
+            _playlist.Add(tracks[i].ToTrack(urls[i]!));
+            added++;
+        }
+        SyncTracks();
+        return added;
+    }
+
+    /// <summary>点播一条搜索结果（先换直链，再进播放列表播放）。</summary>
+    private async Task PlayOnlineTrackAsync(OnlineTrack? track)
+    {
+        if (track is null || OnlineBusy) return;
+        if (!ApiEnabled) { OnlineStatus = "在线音源未启用"; return; }
+
+        OnlineBusy = true;
+        OnlineStatus = "正在获取播放地址…";
+        try
+        {
+            // 重复点同一首时不要往列表里加第二份：按「标题 + 歌手」找已有条目
+            var existing = FindOnlineInPlaylist(track);
+            if (existing >= 0)
+            {
+                _currentOnline = track;
+                SelectAndPlay(existing);
+                OnlineStatus = "正在播放：" + (CurrentTrack?.Display ?? track.Title);
+                return;
+            }
+
+            var url = await Online.GetPlayableUrlAsync(track);
+            if (string.IsNullOrWhiteSpace(url))
+            {
+                OnlineStatus = "无法获取播放地址（多为版权或会员限制）";
+                return;
+            }
+
+            SourceKind = "Online";
+            _currentOnline = track;
+            _playlist.Add(track.ToTrack(url!));
+            SyncTracks();
+            SelectAndPlay(_playlist.Count - 1);
+            OnlineStatus = "正在播放：" + CurrentTrack!.Display;
+        }
+        catch (MusicApiException ex) { OnlineStatus = ex.Message; }
+        catch { OnlineStatus = "播放失败"; }
+        finally { OnlineBusy = false; }
+    }
+
+    /// <summary>在播放列表里找同一首在线曲目（标题 + 歌手都相等）。返回 -1 表示没有。</summary>
+    private int FindOnlineInPlaylist(OnlineTrack track)
+    {
+        var list = _playlist.Tracks.ToList();
+        for (var i = 0; i < list.Count; i++)
+        {
+            if (list[i].IsRemote && list[i].Title == track.Title && list[i].Artist == track.Artist)
+                return i;
+        }
+        return -1;
+    }
+
+    /// <summary>
+    /// 取在线曲目的歌词：先看数据源给不给，拿不到再退到在线歌词服务。
+    /// <b>全程静默</b> —— 没歌词就隐藏歌词区，不弹错误。
+    /// </summary>
+    private async Task LoadOnlineLyricAsync(OnlineTrack track)
+    {
+        _onlineLyricCts?.Cancel();
+        var cts = new CancellationTokenSource();
+        _onlineLyricCts = cts;
+        try
+        {
+            var lrc = await Online.GetLyricAsync(track, cts.Token);
+            if (string.IsNullOrWhiteSpace(lrc) && ClientPrefs.LyricEnabled)
+                lrc = await _lyricService.GetLrcAsync(track.Title, track.Artist, cts.Token);
+            if (cts.IsCancellationRequested) return;
+
+            Lyric.PinMode = LyricPinModeSetting;
+            if (string.IsNullOrWhiteSpace(lrc)) Lyric.Clear();
+            else Lyric.Load("online:" + track.Id, LyricEngine.ParseLrc(lrc));
+
+            RefreshLyricTexts();
+        }
+        catch (OperationCanceledException) { /* 被新一轮取代 */ }
+        catch { /* 歌词属装饰性，失败不影响播放 */ }
+        finally
+        {
+            if (ReferenceEquals(_onlineLyricCts, cts)) { _onlineLyricCts.Dispose(); _onlineLyricCts = null; }
+        }
+    }
+
+    // ---- 登录 ----
+
+    private async Task StartApiLoginAsync()
+    {
+        if (!Online.CanLogin)
+        {
+            LoginStatusText = "当前数据源不支持扫码登录，请改用网易云 API";
+            return;
+        }
+        if (!Online.IsAvailable)
+        {
+            LoginStatusText = "在线音源不可用，请先配置服务地址";
+            return;
+        }
+
+        CancelApiLogin();
+        var cts = new CancellationTokenSource();
+        _loginCts = cts;
+        try
+        {
+            LoginStatusText = "正在获取二维码…";
+            var session = await Online.CreateQrLoginAsync(cts.Token);
+            _loginKey = session.Key;
+            LoginQrDataUrl = session.QrDataUrl;
+            LoginPanelVisible = true;
+            LoginStatusText = "请用手机扫描下方二维码";
+
+            // 轮询节奏 1.5s：太快会被限流，太慢用户会觉得「点了没反应」
+            while (!cts.IsCancellationRequested)
+            {
+                await Task.Delay(1500, cts.Token);
+                var r = await Online.PollQrLoginAsync(session.Key, cts.Token);
+                LoginStatusText = r.Message;
+
+                if (r.State == QrLoginState.Confirmed)
+                {
+                    await Online.CompleteLoginAsync(r.Cookie, cts.Token);
+                    PersistApiCredential();
+                    LoginPanelVisible = false;
+                    LoginQrDataUrl = "";
+                    await LoadMyPlaylistsAsync();
+                    UpdateLoginUi();
+                    break;
+                }
+                if (r.State == QrLoginState.Expired) break;
+            }
+        }
+        catch (OperationCanceledException) { /* 用户取消 */ }
+        catch (MusicApiException ex) { LoginStatusText = ex.Message; }
+        catch { LoginStatusText = "登录失败，请重试"; }
+        finally
+        {
+            if (ReferenceEquals(_loginCts, cts)) { _loginCts.Dispose(); _loginCts = null; }
+        }
+    }
+
+    private void CancelApiLogin()
+    {
+        try { _loginCts?.Cancel(); } catch { /* 已结束的轮询忽略 */ }
+        _loginCts = null;
+        _loginKey = null;
+        LoginPanelVisible = false;
+        LoginQrDataUrl = "";
+    }
+
+    private void ApiLogout()
+    {
+        Online.Logout();
+        MyPlaylists.Clear();
+        PersistApiCredential();
+        UpdateLoginUi();
+        LoginStatusText = "已退出登录";
+    }
+
+    private async Task LoadMyPlaylistsAsync()
+    {
+        if (!Online.IsLoggedIn || !Online.CanLogin) return;
+        try
+        {
+            var list = await Online.GetMyPlaylistsAsync();
+            RunOnUi(() =>
+            {
+                MyPlaylists.Clear();
+                foreach (var p in list) MyPlaylists.Add(p);
+            });
+        }
+        catch { /* 登录态失效：静默清空即可 */ }
+    }
+
+    /// <summary>把当前登录态（凭证 + 昵称头像）写回配置。</summary>
+    private void PersistApiCredential()
+    {
+        try
+        {
+            var p = ProfileStore.Load(GameConstants.DefaultGameRoot);
+            var exp = Online.ExportCredential();
+            p.MusicApi.Credential = exp?.Credential ?? "";
+            p.MusicApi.AccountName = exp?.Nickname ?? "";
+            p.MusicApi.AccountAvatar = exp?.AvatarUrl ?? "";
+            ProfileStore.Save(p);
+        }
+        catch { /* 持久化失败不影响本次会话 */ }
+    }
+
+    private void UpdateLoginUi()
+    {
+        OnPropertyChanged(nameof(IsOnlineLoggedIn));
+        OnPropertyChanged(nameof(CanOnlineLogin));
+        OnPropertyChanged(nameof(ApiAccountLabel));
+    }
+
+    /// <summary>
+    /// 设置页改了在线音源的任一项后调用：重建数据源并让界面即时反映。
+    /// 协议类型 / 服务地址一变，provider 内部状态（含登录态）必须整体重来，所以要 Reload 而不是改字段。
+    /// </summary>
+    public void OnApiPrefsChanged()
+    {
+        try
+        {
+            var prefs = ProfileStore.Load(GameConstants.DefaultGameRoot).MusicApi;
+            Online.Reload(prefs);
+
+            OnPropertyChanged(nameof(ApiEnabled));
+            UpdateLoginUi();
+
+            // 在线音源被关掉时，若正停在该音源则退回本地文件夹
+            if (IsOnline && !ApiEnabled)
+            {
+                SourceKind = "Local";
+                StatusText = "在线音源已关闭，已切回本地文件夹";
+            }
+
+            _ = LoadMyPlaylistsAsync();
+        }
+        catch { /* 联动属非关键 */ }
     }
 }

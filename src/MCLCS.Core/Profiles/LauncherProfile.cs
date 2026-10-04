@@ -220,6 +220,13 @@ public class LauncherProfile
     [JsonPropertyName("musicLastFolder")]
     public string MusicLastFolder { get; set; } = "";
 
+    /// <summary>
+    /// 在线音源设置（数据源协议 / 服务地址 / 音质 / 登录凭证）。
+    /// 读出时由 <see cref="ProfileStore.Load"/> 调 <see cref="MusicApiPrefs.Normalized"/> 容错。
+    /// </summary>
+    [JsonPropertyName("musicApi")]
+    public MusicApiPrefs MusicApi { get; set; } = new();
+
     /// <summary>新建版本的默认隔离模式（通用设置「版本隔离」默认项，bug2.txt #9）。</summary>
     [JsonPropertyName("defaultVersionIsolation")]
     public IsolationMode DefaultVersionIsolation { get; set; } = IsolationMode.Auto;

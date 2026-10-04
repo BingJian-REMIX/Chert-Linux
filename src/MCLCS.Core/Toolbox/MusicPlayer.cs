@@ -44,9 +44,19 @@ public class Track
         }
     }
 
+    /// <summary>
+    /// 是否为远程音源（在线试听时 Path 里填的是 HTTP 直链，而非本地文件路径）。
+    /// <para>必须显式区分：<see cref="LoadMetadata"/> 会按本地文件去读音频标签，
+    /// 若对 URL 执行，导入列表时每一首都要做一次注定失败的 IO。</para>
+    /// </summary>
+    public bool IsRemote =>
+        Path.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+        Path.StartsWith("https://", StringComparison.OrdinalIgnoreCase);
+
     /// <summary>从音频文件读取标签信息填充本曲目。解析失败时保留已有标题（文件名）。</summary>
     public void LoadMetadata()
     {
+        if (IsRemote) return;   // 远程直链没有本地标签可读，别做注定失败的 IO
         var tag = AudioMetadata.Read(Path);
         if (!string.IsNullOrWhiteSpace(tag.Title)) Title = tag.Title!;
         Artist ??= tag.Artist;

@@ -1,8 +1,13 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="clr-namespace:MCLCS.Linux.App.ViewModels"
+             xmlns:conv="clr-namespace:MCLCS.Linux.App.Converters"
              x:Class="MCLCS.Linux.App.Views.Pages.MusicSettingsView"
              x:DataType="vm:MusicSettingsViewModel">
+
+  <UserControl.Resources>
+    <conv:DataUrlToImageConverter x:Key="DataUrlToImage"/>
+  </UserControl.Resources>
 
   <ScrollViewer>
     <StackPanel Spacing="16" MaxWidth="820" HorizontalAlignment="Left">
@@ -102,6 +107,116 @@
                          FontSize="11" Opacity="0.65" TextWrapping="Wrap"
                          Foreground="{DynamicResource SecondaryForeground}"/>
             </StackPanel>
+          </StackPanel>
+        </StackPanel>
+      </Border>
+
+      <!-- 在线音源：由启动器自己通过网络接口取流播放 -->
+
+      <Border Padding="12,10" CornerRadius="8"
+              Background="{DynamicResource CardBackground}"
+              BorderBrush="{DynamicResource ControlBorder}" BorderThickness="1">
+        <StackPanel Spacing="4">
+          <TextBlock Text="在线音源" FontWeight="Bold" FontSize="13"
+                     Foreground="{DynamicResource PrimaryForeground}"/>
+          <TextBlock Text="由启动器自己通过网络接口取流播放。默认指到 Meting 公共实例；若要用「我的歌单」，请改用网易云 API 并填写自建服务地址。"
+                     FontSize="11" Opacity="0.7" TextWrapping="Wrap" Margin="0,0,0,8"
+                     Foreground="{DynamicResource SecondaryForeground}"/>
+
+          <WrapPanel>
+            <ToggleSwitch IsChecked="{Binding ApiEnabled, Mode=TwoWay}"
+                          Content="启用在线音源"
+                          Foreground="{DynamicResource PrimaryForeground}"/>
+          </WrapPanel>
+
+          <StackPanel Spacing="10" Margin="0,10,0,0" IsEnabled="{Binding ApiEnabled}">
+
+            <!-- 数据源 -->
+            <StackPanel Spacing="6">
+              <StackPanel Orientation="Horizontal" Spacing="10">
+                <TextBlock Text="数据源" VerticalAlignment="Center" Width="110"
+                           Foreground="{DynamicResource PrimaryForeground}"/>
+                <ComboBox Width="260" SelectedIndex="{Binding ApiKindIndex, Mode=TwoWay}">
+                  <ComboBoxItem Content="Meting 聚合（免登录）"/>
+                  <ComboBoxItem Content="网易云 API（支持扫码登录）"/>
+                </ComboBox>
+              </StackPanel>
+            </StackPanel>
+
+            <!-- 服务地址 -->
+            <StackPanel Spacing="6">
+              <StackPanel Orientation="Horizontal" Spacing="10">
+                <TextBlock Text="服务地址" VerticalAlignment="Center" Width="110"
+                           Foreground="{DynamicResource PrimaryForeground}"/>
+                <TextBox Width="300" Text="{Binding ApiBaseUrl}" Padding="6,4" VerticalAlignment="Center"/>
+                <Button Content="恢复默认" Command="{Binding ApiRestoreDefaultUrlCommand}"
+                        VerticalAlignment="Center" Classes="modal-btn"/>
+              </StackPanel>
+              <TextBlock Text="不含结尾斜杠。切换数据源时会重置为对应的默认地址。"
+                         FontSize="11" Opacity="0.65" TextWrapping="Wrap"
+                         Foreground="{DynamicResource SecondaryForeground}"/>
+            </StackPanel>
+
+            <!-- 平台（仅 Meting 协议） -->
+            <StackPanel Spacing="6" IsVisible="{Binding ApiPlatformVisible}">
+              <StackPanel Orientation="Horizontal" Spacing="10">
+                <TextBlock Text="平台" VerticalAlignment="Center" Width="110"
+                           Foreground="{DynamicResource PrimaryForeground}"/>
+                <ComboBox Width="180" SelectedIndex="{Binding ApiPlatformIndex, Mode=TwoWay}">
+                  <ComboBoxItem Content="网易云音乐"/>
+                  <ComboBoxItem Content="QQ 音乐"/>
+                  <ComboBoxItem Content="酷狗音乐"/>
+                </ComboBox>
+              </StackPanel>
+            </StackPanel>
+
+            <!-- 音质 -->
+            <StackPanel Spacing="6">
+              <StackPanel Orientation="Horizontal" Spacing="10">
+                <TextBlock Text="音质" VerticalAlignment="Center" Width="110"
+                           Foreground="{DynamicResource PrimaryForeground}"/>
+                <ComboBox Width="180" SelectedIndex="{Binding ApiQualityIndex, Mode=TwoWay}">
+                  <ComboBoxItem Content="标准 128k"/>
+                  <ComboBoxItem Content="较高 192k"/>
+                  <ComboBoxItem Content="极高 320k"/>
+                  <ComboBoxItem Content="无损"/>
+                </ComboBox>
+              </StackPanel>
+            </StackPanel>
+
+            <!-- 登录状态 -->
+            <StackPanel Spacing="6">
+              <StackPanel Orientation="Horizontal" Spacing="10">
+                <TextBlock Text="登录状态" VerticalAlignment="Center" Width="110"
+                           Foreground="{DynamicResource PrimaryForeground}"/>
+                <TextBlock Text="{Binding ApiAccountLabel}" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                <Button Content="扫码登录" Command="{Binding ApiLoginCommand}"
+                        IsVisible="{Binding ApiCanLogin}" Padding="10,5" Margin="0,0,8,0"
+                        Classes="modal-btn accent"/>
+                <Button Content="退出登录" Command="{Binding ApiLogoutCommand}"
+                        IsVisible="{Binding ApiLoggedIn}" Padding="10,5" Classes="modal-btn"/>
+              </StackPanel>
+              <TextBlock Text="当前数据源不支持扫码登录" FontSize="11" Opacity="0.65"
+                         IsVisible="{Binding !ApiCanLogin}"
+                         Foreground="{DynamicResource SecondaryForeground}"/>
+            </StackPanel>
+
+            <!-- 二维码：服务端返回 data URL，由转换器解码 -->
+
+            <Border Padding="12" CornerRadius="8" HorizontalAlignment="Left"
+                    Background="{DynamicResource InputBackground}"
+                    IsVisible="{Binding MusicPlayer.LoginPanelVisible}">
+              <StackPanel Spacing="8">
+                <Image Width="170" Height="170" Stretch="Uniform"
+                       Source="{Binding MusicPlayer.LoginQrDataUrl, Converter={StaticResource DataUrlToImage}}"/>
+                <TextBlock Text="{Binding MusicPlayer.LoginStatusText}" FontSize="11" Opacity="0.8"
+                           TextAlignment="Center" MaxWidth="200" TextWrapping="Wrap"
+                           Foreground="{DynamicResource PrimaryForeground}"/>
+                <Button Content="取消" Command="{Binding ApiCancelLoginCommand}"
+                        Padding="10,4" HorizontalAlignment="Center" Classes="modal-btn"/>
+              </StackPanel>
+            </Border>
+
           </StackPanel>
         </StackPanel>
       </Border>

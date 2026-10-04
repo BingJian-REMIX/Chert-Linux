@@ -20,6 +20,7 @@ public static class ProfileStore
             // 音乐客户端设置容错：配置可能被手改/来自旧版本，宽限期钳制到 0–30、
             // 非法歌词固定方式回退默认，避免脏值渗进业务逻辑（对齐 WPF）。
             p.MusicClient = (p.MusicClient ?? new MusicClientPrefs()).Normalized();
+            p.MusicApi = (p.MusicApi ?? new MusicApiPrefs()).Normalized();
             return p;
         }
         catch
