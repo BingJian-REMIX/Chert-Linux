@@ -20,6 +20,7 @@ namespace MCLCS.Core.Music;
 public sealed class OnlineMusicService
 {
     private readonly HttpClient _http;
+    private readonly Dictionary<MusicApiPlatform, IOnlineMusicProvider> _perPlatform = new();
     private MusicApiPrefs _prefs;
     private IOnlineMusicProvider _provider;
     private string _cookie = "";
@@ -51,11 +52,51 @@ public sealed class OnlineMusicService
         return c;
     }
 
-    private IOnlineMusicProvider BuildProvider(MusicApiPrefs prefs) => prefs.Kind switch
+    /// <summary>
+    /// 当前「对话对象」的厂家。
+    /// <para>「全部平台」是搜索范围而非厂家 —— 登录、我的歌单这类动作必须落在具体厂家上，
+    /// 这里统一退回网易云（自建项目最成熟的一家）。</para>
+    /// </summary>
+    private MusicApiPlatform CurrentPlatform =>
+        _prefs.Platform == MusicApiPlatform.All ? MusicApiPlatform.Netease : _prefs.Platform;
+
+    private IOnlineMusicProvider BuildProvider(MusicApiPrefs prefs)
     {
-        MusicApiKind.NeteaseApi => new NeteaseCloudMusicApiProvider(_http, prefs.BaseUrl),
-        _ => new MetingMusicProvider(_http, prefs.BaseUrl, prefs.Platform)
-    };
+        if (prefs.Kind == MusicApiKind.Meting)
+            return new MetingMusicProvider(_http, prefs.BaseUrl, prefs.Platform);
+
+        var platform = CurrentPlatform;
+        var url = prefs.UrlFor(platform);
+        var profile = VendorApiProfiles.For(platform);
+
+        // ★ 没有可用自建项目的厂家（酷我 / 百度 / 虾米）：退回 Meting 聚合。
+        //   宁可「免登录但能搜能播」，也不要给用户一个永远连不上的输入框。
+        if (profile is null)
+            return new MetingMusicProvider(_http, prefs.BaseUrl, platform);
+
+        // 网易云走已验证的专用实现，其余厂家走通用实现
+        return platform == MusicApiPlatform.Netease
+            ? new NeteaseCloudMusicApiProvider(_http, url)
+            : new CommunityApiProvider(_http, profile, url);
+    }
+
+    /// <summary>
+    /// 按曲目所属厂家取数据源。
+    /// <para><b>为什么不能一律用当前 provider</b>：聚合搜索出来的结果混着多家曲目，
+    /// 而曲目 ID 只在自己厂家域内有效。拿网易云的 provider 去换酷狗曲目的直链，
+    /// 必然换不出来 —— 用户看到的就是「搜索有结果，点播没声音」。</para>
+    /// </summary>
+    private IOnlineMusicProvider ProviderFor(OnlineTrack? track)
+    {
+        if (_prefs.Kind != MusicApiKind.Meting || track is null) return _provider;
+        if (track.Platform == _prefs.Platform || track.Platform == MusicApiPlatform.All) return _provider;
+
+        if (_perPlatform.TryGetValue(track.Platform, out var cached)) return cached;
+
+        var created = new MetingMusicProvider(_http, _prefs.BaseUrl, track.Platform);
+        _perPlatform[track.Platform] = created;
+        return created;
+    }
 
     // ---- 设置 / 数据源 ----
 
@@ -73,6 +114,21 @@ public sealed class OnlineMusicService
 
     /// <summary>数据源是否支持登录。</summary>
     public bool CanLogin => _provider.SupportsLogin;
+
+    /// <summary>当前厂家（Meting 模式下就是设置里那个搜索范围）。</summary>
+    public MusicApiPlatform Platform => _prefs.Platform;
+
+    /// <summary>当前厂家的自建 API 档案（Meting 模式或该厂家无自建项目时为 null）。</summary>
+    public VendorApiProfile? VendorProfile =>
+        _prefs.Kind == MusicApiKind.Meting ? null : VendorApiProfiles.For(CurrentPlatform);
+
+    /// <summary>
+    /// 厂家模式下是否真的能登录。
+    /// <para>与 <see cref="CanLogin"/> 的区别：有些厂家（酷我 / 百度 / 虾米）没有可用的自建项目，
+    /// 会退回到 Meting，此时「不能登录」是厂家本身决定的，而不是服务没配好 ——
+    /// 界面要据此给出不同提示。</para>
+    /// </summary>
+    public bool VendorLoginSupported => VendorApiProfiles.CanLogin(CurrentPlatform);
 
     /// <summary>是否支持按关键词搜索公开歌单。</summary>
     public bool CanSearchPlaylists => _provider.SupportsPlaylistSearch;
@@ -94,6 +150,7 @@ public sealed class OnlineMusicService
     public void Reload(MusicApiPrefs prefs)
     {
         _prefs = (prefs ?? new MusicApiPrefs()).Normalized();
+        _perPlatform.Clear();       // 服务地址可能已变，按厂家缓存的 provider 必须一起作废
         _provider = BuildProvider(_prefs);
         ApplyCredential();
 
@@ -107,13 +164,23 @@ public sealed class OnlineMusicService
     /// </summary>
     private void ApplyCredential()
     {
-        if (_provider.SupportsLogin)
-            _cookie = ApiCredentialProtector.TryUnprotect(_prefs.Credential) ?? "";
-        else
+        if (!_provider.SupportsLogin)
         {
             _cookie = "";
             _account = null;
+            return;
         }
+
+        // ★ 凭证按厂家分开保存：切厂家时读的是那一家自己的凭证，
+        //   不会把酷狗的 token 当成网易云的登录态。
+        var entry = _prefs.VendorFor(CurrentPlatform);
+        _cookie = ApiCredentialProtector.TryUnprotect(entry.Credential) ?? "";
+
+        // 昵称/头像先用落盘的展示值顶上：让界面立刻显示「已登录」，
+        // 真实信息由 RefreshAccountAsync 联网补全（拉不到也只是显示退化）。
+        _account = string.IsNullOrWhiteSpace(entry.AccountName) && string.IsNullOrWhiteSpace(entry.AccountAvatar)
+            ? null
+            : new OnlineAccount { Nickname = entry.AccountName, AvatarUrl = entry.AccountAvatar };
     }
 
     /// <summary>取合规质量（当前设置里的音质）。</summary>
@@ -132,12 +199,15 @@ public sealed class OnlineMusicService
     public Task<IReadOnlyList<OnlineTrack>> GetPlaylistTracksAsync(string playlistId, CancellationToken ct = default)
         => _provider.GetPlaylistTracksAsync(playlistId, ct);
 
-    /// <summary>取直链。已登录时自动带上凭证（部分曲目只有登录才能取到完整长度）。</summary>
+    /// <summary>
+    /// 取直链。已登录时自动带上凭证（部分曲目只有登录才能取到完整长度）。
+    /// <para>会按 <see cref="OnlineTrack.Platform"/> 回到对应厂家取，跨厂家不会串。</para>
+    /// </summary>
     public Task<string?> GetPlayableUrlAsync(OnlineTrack track, CancellationToken ct = default)
-        => _provider.GetPlayableUrlAsync(track, _prefs.Quality, _cookie, ct);
+        => ProviderFor(track).GetPlayableUrlAsync(track, _prefs.Quality, _cookie, ct);
 
     public Task<string?> GetLyricAsync(OnlineTrack track, CancellationToken ct = default)
-        => _provider.GetLyricAsync(track, ct);
+        => ProviderFor(track).GetLyricAsync(track, ct);
 
     /// <summary>
     /// 取「我的歌单」。数据源不支持登录或尚未登录时返回空列表（不抛）。
@@ -213,25 +283,37 @@ public sealed class OnlineMusicService
         catch (MusicApiException) { return false; }
     }
 
-    /// <summary>退出登录（清内存凭证；磁盘上的记录由 <see cref="ExportCredential"/> 的调用方负责写）。</summary>
+    /// <summary>退出登录（清内存凭证与当前厂家落盘的凭证）。</summary>
     public void Logout()
     {
         _cookie = "";
         _account = null;
+
+        var entry = _prefs.VendorFor(CurrentPlatform);
+        entry.Credential = "";
+        entry.AccountName = "";
+        entry.AccountAvatar = "";
+
         LoginStateChanged?.Invoke();
     }
 
     /// <summary>
-    /// 导出当前登录态以便持久化。
+    /// 导出当前厂家登录态以便持久化。
     /// <para>返回的 <c>Credential</c> 已混淆；未登录时返回 null。</para>
     /// </summary>
     public StoredCredential? ExportCredential()
     {
         if (!IsLoggedIn) return null;
-        return new StoredCredential(
-            ApiCredentialProtector.Protect(_cookie),
-            _account?.Nickname ?? _prefs.AccountName,
-            _account?.AvatarUrl ?? _prefs.AccountAvatar);
+
+        var name = _account?.Nickname ?? _prefs.AccountName ?? "";
+        var avatar = _account?.AvatarUrl ?? _prefs.AccountAvatar ?? "";
+
+        var entry = _prefs.VendorFor(CurrentPlatform);
+        entry.Credential = ApiCredentialProtector.Protect(_cookie);
+        entry.AccountName = name;
+        entry.AccountAvatar = avatar;
+
+        return new StoredCredential(entry.Credential, name, avatar);
     }
 
     /// <summary>待持久化的登录态。</summary>

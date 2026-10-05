@@ -14,12 +14,24 @@ public enum MusicApiKind
     /// <summary>
     /// NeteaseCloudMusicApi（Node 版）协议：能力最全，**支持二维码登录与我的歌单**，
     /// 但几乎必须自建实例（公共实例大多已失效），即 software 侧要用户自己部署。
+    /// <para>已并入 <see cref="VendorApi"/> 体系：本值等价于「厂家自建 API + 网易云」，
+    /// 只为兼容旧配置保留，新写入一律用 <see cref="VendorApi"/>。</para>
     /// </summary>
-    NeteaseApi = 1
+    NeteaseApi = 1,
+
+    /// <summary>
+    /// 厂家自建 API：按 <see cref="MusicApiPlatform"/> 选择厂家，每个厂家一份
+    /// 服务地址与登录态，可同时登录多个厂家。
+    /// <para>各厂家的社区 API 项目互不相同（网易云 NeteaseCloudMusicApi、
+    /// 酷狗 KuGouMusicApi、QQ 音乐的 QQMusicApi 等），路由与响应结构也不一样，
+    /// 因此由 <see cref="VendorApiProfile"/> 描述差异，代码只写一份通用实现。</para>
+    /// </summary>
+    VendorApi = 2
 }
 
 /// <summary>
-/// Meting 协议下的曲目平台。仅 <see cref="MusicApiKind.Meting"/> 生效。
+/// 曲库厂家。Meting 协议下决定请求的 <c>server</c> 参数；
+/// 厂家自建 API 下决定「跟哪个厂家自建的服务对话、用哪份登录态」。
 /// </summary>
 public enum MusicApiPlatform
 {
@@ -30,7 +42,54 @@ public enum MusicApiPlatform
     Tencent = 1,
 
     /// <summary>酷狗音乐。</summary>
-    Kugou = 2
+    Kugou = 2,
+
+    /// <summary>酷我音乐。</summary>
+    Kuwo = 3,
+
+    /// <summary>百度音乐（千千音乐）。</summary>
+    Baidu = 4,
+
+    /// <summary>虾米音乐（已停服，仅保留以兼容仍留有缓存的老实例）。</summary>
+    Xiami = 5,
+
+    /// <summary>
+    /// 全部平台：并发搜索所有厂家再合并结果（仅 Meting 协议生效）。
+    /// <para>它是「搜索范围」而不是「某个厂家」—— 因此曲目自身不会带这个值，
+    /// 每条结果都会落到真实的某一个厂家上（见 <see cref="OnlineTrack.Platform"/>）。</para>
+    /// </summary>
+    All = 6
+}
+
+/// <summary>
+/// 厂家的展示名与能力标注。
+/// <para>放在这里而不是各 provider 内部，是为了让 UI 能把「全部平台」也列进同一个下拉框，
+/// 不必为聚合选项单独写一套分支。</para>
+/// </summary>
+public static class MusicApiPlatformInfo
+{
+    /// <summary>厂家展示名（中文）。</summary>
+    public static string DisplayName(MusicApiPlatform p) => p switch
+    {
+        MusicApiPlatform.Tencent => "QQ音乐",
+        MusicApiPlatform.Kugou => "酷狗音乐",
+        MusicApiPlatform.Kuwo => "酷我音乐",
+        MusicApiPlatform.Baidu => "百度音乐",
+        MusicApiPlatform.Xiami => "虾米音乐",
+        MusicApiPlatform.All => "全部平台",
+        _ => "网易云音乐"
+    };
+
+    /// <summary>可参与聚合搜索的厂家（不含 <see cref="MusicApiPlatform.All"/> 自身）。</summary>
+    public static IReadOnlyList<MusicApiPlatform> Searchable { get; } = new[]
+    {
+        MusicApiPlatform.Netease,
+        MusicApiPlatform.Tencent,
+        MusicApiPlatform.Kugou,
+        MusicApiPlatform.Kuwo,
+        MusicApiPlatform.Baidu,
+        MusicApiPlatform.Xiami
+    };
 }
 
 /// <summary>
@@ -61,6 +120,14 @@ public sealed class OnlineTrack
 {
     /// <summary>音源内的曲目 ID（Meting 与网易云不同域，不可混用）。</summary>
     public string Id { get; set; } = "";
+
+    /// <summary>
+    /// 这首曲目来自哪个厂家。
+    /// <para><b>为什么必须挂在曲目上</b>：曲目 ID 只在自己的厂家域内有效，
+    /// 用网易云的 provider 去换酷狗曲目的直链必然失败。聚合搜索下结果来自多个厂家，
+    /// 取直链 / 取歌词时必须按这个值回到对应厂家，而不是「当前设置里的那个」。</para>
+    /// </summary>
+    public MusicApiPlatform Platform { get; set; } = MusicApiPlatform.Netease;
 
     /// <summary>曲名。</summary>
     public string Title { get; set; } = "";
@@ -95,6 +162,9 @@ public sealed class OnlineTrack
             return string.Join(" · ", parts);
         }
     }
+
+    /// <summary>来源厂家名（聚合搜索时用于在结果上标注出处）。</summary>
+    public string PlatformText => MusicApiPlatformInfo.DisplayName(Platform);
 
     public string DurationText => DurationSec <= 0
         ? "--:--"
@@ -137,6 +207,12 @@ public sealed class OnlinePlaylist
 
     /// <summary>是否来自「我的歌单」（登录后才可能为 true）。</summary>
     public bool IsMine { get; set; }
+
+    /// <summary>歌单所属厂家（跨厂家聚合「我的歌单」时用于标注出处）。</summary>
+    public MusicApiPlatform Platform { get; set; } = MusicApiPlatform.Netease;
+
+    /// <summary>来源厂家名。</summary>
+    public string PlatformText => MusicApiPlatformInfo.DisplayName(Platform);
 
     /// <summary>列表副标题。</summary>
     public string MetaText =>

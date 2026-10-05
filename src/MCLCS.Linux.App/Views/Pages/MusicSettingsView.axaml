@@ -138,7 +138,7 @@
                            Foreground="{DynamicResource PrimaryForeground}"/>
                 <ComboBox Width="260" SelectedIndex="{Binding ApiKindIndex, Mode=TwoWay}">
                   <ComboBoxItem Content="Meting 聚合（免登录）"/>
-                  <ComboBoxItem Content="网易云 API（支持扫码登录）"/>
+                  <ComboBoxItem Content="厂家自建 API（扫码登录）"/>
                 </ComboBox>
               </StackPanel>
             </StackPanel>
@@ -157,17 +157,26 @@
                          Foreground="{DynamicResource SecondaryForeground}"/>
             </StackPanel>
 
-            <!-- 平台（仅 Meting 协议） -->
+            <!-- 厂家（Meting 下决定搜哪家，厂家 API 下决定跟哪个自建服务对话） -->
             <StackPanel Spacing="6" IsVisible="{Binding ApiPlatformVisible}">
               <StackPanel Orientation="Horizontal" Spacing="10">
-                <TextBlock Text="平台" VerticalAlignment="Center" Width="110"
+                <TextBlock Text="厂家" VerticalAlignment="Center" Width="110"
                            Foreground="{DynamicResource PrimaryForeground}"/>
                 <ComboBox Width="180" SelectedIndex="{Binding ApiPlatformIndex, Mode=TwoWay}">
                   <ComboBoxItem Content="网易云音乐"/>
                   <ComboBoxItem Content="QQ 音乐"/>
                   <ComboBoxItem Content="酷狗音乐"/>
+                  <ComboBoxItem Content="酷我音乐"/>
+                  <ComboBoxItem Content="百度音乐"/>
+                  <ComboBoxItem Content="虾米音乐"/>
+                  <ComboBoxItem Content="全部平台（聚合搜索）"/>
                 </ComboBox>
               </StackPanel>
+              <!-- 厂家自建服务说明：没有可用项目的厂家要明确告知，而不是让用户干等 -->
+              <TextBlock Text="{Binding ApiVendorHint}" FontSize="11" Opacity="0.7"
+                         TextWrapping="Wrap"
+                         IsVisible="{Binding ApiVendorHint, Converter={StaticResource NonEmptyToVis}}"
+                         Foreground="{DynamicResource SecondaryForeground}"/>
             </StackPanel>
 
             <!-- 音质 -->

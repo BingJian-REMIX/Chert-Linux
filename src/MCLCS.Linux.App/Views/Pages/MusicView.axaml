@@ -256,6 +256,9 @@
                   <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis"/>
                   <TextBlock Text="{Binding MetaText}" FontSize="11" Opacity="0.65"
                              Foreground="{DynamicResource SecondaryForeground}"/>
+                  <!-- 来源厂家：聚合搜索下结果混着多家，不标出处用户不知道点的是哪家的歌 -->
+                  <TextBlock Text="{Binding PlatformText}" FontSize="11" Opacity="0.65"
+                             Foreground="{DynamicResource SecondaryForeground}"/>
                   <TextBlock Text="{Binding DurationText}" FontSize="11" Opacity="0.55"
                              Foreground="{DynamicResource SecondaryForeground}"/>
                 </StackPanel>

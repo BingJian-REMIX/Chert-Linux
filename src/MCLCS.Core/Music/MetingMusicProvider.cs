@@ -34,24 +34,23 @@ public sealed class MetingMusicProvider : IOnlineMusicProvider
         _platform = platform;
     }
 
-    public string Name => $"Meting · {PlatformText(_platform)}";
+    public string Name => $"Meting · {MusicApiPlatformInfo.DisplayName(_platform)}";
 
     public bool SupportsLogin => false;
 
     public bool SupportsPlaylistSearch => false;
 
-    private string Server => _platform switch
+    private string Server => ServerFor(_platform);
+
+    /// <summary>厂家 → Meting 的 server 参数。未知厂家一律退回 netease（比发出一个非法请求好）。</summary>
+    private static string ServerFor(MusicApiPlatform p) => p switch
     {
         MusicApiPlatform.Tencent => "tencent",
         MusicApiPlatform.Kugou => "kugou",
+        MusicApiPlatform.Kuwo => "kuwo",
+        MusicApiPlatform.Baidu => "baidu",
+        MusicApiPlatform.Xiami => "xiami",
         _ => "netease"
-    };
-
-    private static string PlatformText(MusicApiPlatform p) => p switch
-    {
-        MusicApiPlatform.Tencent => "QQ音乐",
-        MusicApiPlatform.Kugou => "酷狗音乐",
-        _ => "网易云音乐"
     };
 
     // ---- URL 构造 ----
@@ -62,10 +61,13 @@ public sealed class MetingMusicProvider : IOnlineMusicProvider
     /// 所以分隔符要看有没有 '?' 来决定。</para>
     /// </summary>
     private string BuildUrl(string type, string id, params string[] extra)
+        => BuildUrlFor(_platform, type, id, extra);
+
+    private string BuildUrlFor(MusicApiPlatform platform, string type, string id, params string[] extra)
     {
         var sb = new System.Text.StringBuilder(_baseUrl);
         sb.Append(_baseUrl.Contains('?') ? '&' : '?');
-        sb.Append("server=").Append(Server);
+        sb.Append("server=").Append(ServerFor(platform));
         sb.Append("&type=").Append(type);
 
         if (!string.IsNullOrEmpty(id))
@@ -119,7 +121,17 @@ public sealed class MetingMusicProvider : IOnlineMusicProvider
 
     // ---- 接口实现 ----
 
-    public async Task<IReadOnlyList<OnlineTrack>> SearchSongsAsync(string keyword, int limit = 30, CancellationToken ct = default)
+    public Task<IReadOnlyList<OnlineTrack>> SearchSongsAsync(string keyword, int limit = 30, CancellationToken ct = default)
+    {
+        if (_platform != MusicApiPlatform.All)
+            return SearchOnAsync(_platform, keyword, limit, ct);
+
+        return SearchAllPlatformsAsync(keyword, limit, ct);
+    }
+
+    /// <summary>单个厂家的搜索（也是聚合搜索的基本单元）。</summary>
+    private async Task<IReadOnlyList<OnlineTrack>> SearchOnAsync(
+        MusicApiPlatform platform, string keyword, int limit, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(keyword)) return Array.Empty<OnlineTrack>();
 
@@ -127,7 +139,7 @@ public sealed class MetingMusicProvider : IOnlineMusicProvider
         //   两个都带上不影响任一侧取值，比「猜某一个」稳。
         //   id 由 BuildUrl 内部负责转义，这里必须传原文 —— 传已转义串会导致二次转义
         //   （%，会被再编成 %25），服务端收到的就是一串百分号而不是实际关键词。
-        var url = BuildUrl("search",
+        var url = BuildUrlFor(platform, "search",
             keyword.Trim(),
             "name=" + Uri.EscapeDataString(keyword.Trim()));
 
@@ -140,11 +152,80 @@ public sealed class MetingMusicProvider : IOnlineMusicProvider
         var list = new List<OnlineTrack>();
         foreach (var e in doc.RootElement.EnumerateArray())
         {
-            var track = ParseTrack(e, isDetail: false);
+            var track = ParseTrack(e, isDetail: false, platform: platform);
             if (track is not null) list.Add(track);
             if (list.Count >= Math.Clamp(limit, 1, 100)) break;
         }
         return list;
+    }
+
+    /// <summary>
+    /// 并发搜所有厂家再合并。
+    /// <para><b>为什么并发而不是串行</b>：串行 N 家意味着 N 倍等待，聚合搜索会慢到不可用。
+    /// 各家之间彼此独立，并发是唯一合理选择。</para>
+    /// <para><b>为什么必须容错单个厂家</b>：公共实例常年处于「某几家挂了」的状态；
+    /// 一家 502 就让整个搜索空手而归，等于把可用性交给了最弱的那一环。
+    /// 这里只要有一家成功就返回结果，全部失败才把最后一家的异常抛出去。</para>
+    /// <para><b>为什么交错合并</b>：直接按厂家顺序拼接会把后面的厂家全挤到列表末尾，
+    /// 用户翻两屏也看不到。轮转取一条能让各家结果都出现在首屏。</para>
+    /// </summary>
+    private async Task<IReadOnlyList<OnlineTrack>> SearchAllPlatformsAsync(
+        string keyword, int limit, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(keyword)) return Array.Empty<OnlineTrack>();
+
+        var platforms = MusicApiPlatformInfo.Searchable;
+        var want = Math.Clamp(limit, 1, 100);
+
+        // 每家先各取一部分（向上取整，保证凑满 want），单家至少 3 条避免「只有个位数」
+        var per = Math.Clamp((int)Math.Ceiling(want / (double)platforms.Count), 3, 30);
+
+        MusicApiException? lastError = null;
+        var buckets = new List<List<OnlineTrack>>();
+
+        async Task<IReadOnlyList<OnlineTrack>> Safe(MusicApiPlatform p)
+        {
+            try
+            {
+                return await SearchOnAsync(p, keyword, per, ct).ConfigureAwait(false);
+            }
+            catch (MusicApiException ex)
+            {
+                lastError = ex;
+                return Array.Empty<OnlineTrack>();
+            }
+        }
+
+        var results = await Task.WhenAll(platforms.Select(Safe)).ConfigureAwait(false);
+
+        foreach (var r in results)
+            buckets.Add(r is null ? new List<OnlineTrack>() : r.ToList());
+
+        var merged = Interleave(buckets, want);
+        if (merged.Count == 0 && lastError is not null)
+            throw lastError;      // 全灭：把真实原因抛出去，别让 UI 显示「没有结果」
+
+        return merged;
+    }
+
+    /// <summary>轮转交错合并各厂家的结果桶，最多取 <paramref name="max"/> 条。</summary>
+    private static List<OnlineTrack> Interleave(List<List<OnlineTrack>> buckets, int max)
+    {
+        var merged = new List<OnlineTrack>();
+        var index = new int[buckets.Count];
+
+        while (merged.Count < max)
+        {
+            var addedThisRound = false;
+            for (var i = 0; i < buckets.Count && merged.Count < max; i++)
+            {
+                if (index[i] >= buckets[i].Count) continue;
+                merged.Add(buckets[i][index[i]++]);
+                addedThisRound = true;
+            }
+            if (!addedThisRound) break;      // 所有桶都取完了
+        }
+        return merged;
     }
 
     public Task<IReadOnlyList<OnlinePlaylist>> SearchPlaylistsAsync(string keyword, int limit = 20, CancellationToken ct = default)
@@ -167,7 +248,8 @@ public sealed class MetingMusicProvider : IOnlineMusicProvider
         var list = new List<OnlineTrack>();
         foreach (var e in doc.RootElement.EnumerateArray())
         {
-            var track = ParseTrack(e, isDetail: true);
+            // 歌单曲目：平台就是当前 provider 的平台（聚合只作用于搜索）
+            var track = ParseTrack(e, isDetail: true, platform: _platform);
             if (track is not null) list.Add(track);
         }
         return list;
@@ -240,7 +322,7 @@ public sealed class MetingMusicProvider : IOnlineMusicProvider
     /// <paramref name="isDetail"/> 为 true 时走「详情字段」优先（title/author），
     /// 为 false 时走「搜索字段」优先（name/artist）—— 两类接口的实际返回确实不一样。
     /// </summary>
-    private OnlineTrack? ParseTrack(JsonElement e, bool isDetail)
+    private OnlineTrack? ParseTrack(JsonElement e, bool isDetail, MusicApiPlatform platform)
     {
         if (e.ValueKind != JsonValueKind.Object) return null;
 
@@ -266,12 +348,13 @@ public sealed class MetingMusicProvider : IOnlineMusicProvider
         {
             var picId = GetString(e, "pic_id");
             if (!string.IsNullOrWhiteSpace(picId))
-                cover = BuildUrl("pic", picId);   // 图片本身就是本实例的一个 type
+                cover = BuildUrlFor(platform, "pic", picId);   // 图片本身就是本实例的一个 type
         }
 
         return new OnlineTrack
         {
             Id = id!,
+            Platform = platform,
             Title = title,
             Artist = artist,
             Album = GetString(e, "album") ?? "",

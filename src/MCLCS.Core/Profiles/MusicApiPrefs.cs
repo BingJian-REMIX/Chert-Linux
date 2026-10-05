@@ -66,16 +66,59 @@ public sealed class MusicApiPrefs
     [JsonPropertyName("accountAvatar")]
     public string AccountAvatar { get; set; } = "";
 
-    /// <summary>是否已配置了可用的服务地址。</summary>
+    /// <summary>
+    /// 每个厂家一份的自建服务配置（地址 + 登录态）。
+    /// <para><b>为什么要按厂家分开存</b>：各厂家的社区 API 是各自独立的服务，
+    /// 地址不同、登录态也不同（酷狗的 token 拿去问网易云没有任何意义）。
+    /// 混用一份地址/凭证的结果是「切个厂家就得重新扫码」，所以按厂家分桶存。</para>
+    /// <para>键是 <see cref="MusicApiPlatform"/> 的小写名（netease / kugou / tencent …），
+    /// 这样手改配置文件也是可读的，不会因为枚举数值变动而错位。</para>
+    /// </summary>
+    [JsonPropertyName("vendors")]
+    public Dictionary<string, VendorApiEntry> Vendors { get; set; } = new();
+
+    /// <summary>
+    /// 是否已配置了可用的服务地址。
+    /// <para>Meting 模式下只有一个聚合实例地址（<see cref="BaseUrl"/>）；
+    /// 厂家模式下则是「当前厂家」那份地址 —— 两者的含义不同，不能混读。</para>
+    /// </summary>
     [JsonIgnore]
-    public bool HasBaseUrl => !string.IsNullOrWhiteSpace(BaseUrl);
+    public bool HasBaseUrl => Kind == MusicApiKind.Meting
+        ? !string.IsNullOrWhiteSpace(BaseUrl)
+        : !string.IsNullOrWhiteSpace(VendorFor(Platform).BaseUrl);
 
     /// <summary>是否已保存了登录凭证（不代表凭证仍然有效）。</summary>
     [JsonIgnore]
     public bool HasCredential => !string.IsNullOrWhiteSpace(Credential);
 
+    /// <summary>厂家配置在 JSON 里的键名。</summary>
+    public static string Key(MusicApiPlatform platform) =>
+        platform.ToString().ToLowerInvariant();
+
     /// <summary>
-    /// 归一化：修掉尾斜杠、补上 http 前缀缺失的常见误填，非法枚举回退默认。
+    /// 取（必要时创建）某厂家的配置。缺省地址来自该厂家的档案。
+    /// </summary>
+    public VendorApiEntry VendorFor(MusicApiPlatform platform)
+    {
+        Vendors ??= new Dictionary<string, VendorApiEntry>();
+
+        var key = Key(platform);
+        if (!Vendors.TryGetValue(key, out var entry) || entry is null)
+        {
+            entry = new VendorApiEntry { BaseUrl = VendorApiProfiles.DefaultUrlFor(platform) };
+            Vendors[key] = entry;
+        }
+
+        entry.BaseUrl = (entry.BaseUrl ?? "").Trim().TrimEnd('/');
+        entry.Credential ??= "";
+        entry.AccountName ??= "";
+        entry.AccountAvatar ??= "";
+        return entry;
+    }
+
+    /// <summary>
+    /// 归一化：修掉尾斜杠、补上 http 前缀缺失的常见误填，非法枚举回退默认，
+    /// 并把旧版「单份地址 / 单份凭证」迁移进按厂家分桶的 <see cref="Vendors"/>。
     /// </summary>
     public MusicApiPrefs Normalized()
     {
@@ -92,10 +135,75 @@ public sealed class MusicApiPrefs
         AccountAvatar ??= "";
         Credential ??= "";
 
+        Vendors ??= new Dictionary<string, VendorApiEntry>();
+
+        // 旧配置迁移：只有「当时填的确实是某个厂家自建服务地址」才搬过去。
+        // Meting 的公共实例地址不能当成网易云 API 的地址，否则切到厂家模式会指向错误的地方。
+        if (Vendors.Count == 0)
+        {
+            var legacy = Kind != MusicApiKind.Meting ? Platform : MusicApiPlatform.Netease;
+
+            if (!string.IsNullOrWhiteSpace(BaseUrl) && Kind != MusicApiKind.Meting)
+                VendorFor(legacy).BaseUrl = BaseUrl!;
+
+            if (!string.IsNullOrWhiteSpace(Credential))
+            {
+                var v = VendorFor(legacy);
+                v.Credential = Credential!;
+                v.AccountName = AccountName ?? "";
+                v.AccountAvatar = AccountAvatar ?? "";
+            }
+        }
+
+        // 补齐各厂家条目（让设置页能直接展示每家的默认地址，而不是空白）
+        foreach (var p in System.Enum.GetValues<MusicApiPlatform>())
+            VendorFor(p);
+
         return this;
     }
 
-    /// <summary>某协议的推荐默认地址（供设置页「恢复默认」按钮使用）。</summary>
-    public static string DefaultUrlFor(MusicApiKind kind) =>
-        kind == MusicApiKind.NeteaseApi ? DefaultNeteaseApiUrl : DefaultMetingUrl;
+    /// <summary>某厂家当前生效的服务地址。</summary>
+    public string UrlFor(MusicApiPlatform platform) => VendorFor(platform).BaseUrl;
+
+    /// <summary>
+    /// 写入某厂家的服务地址。
+    /// <para><b>不</b>回写 <see cref="BaseUrl"/>：那是 Meting 聚合实例的地址，
+    /// 把厂家地址盖上去会让「切回 Meting」时指向一个错误的服务。</para>
+    /// </summary>
+    public void SetUrl(MusicApiPlatform platform, string url)
+        => VendorFor(platform).BaseUrl = (url ?? "").Trim().TrimEnd('/');
+
+    /// <summary>数据源对应的推荐默认地址（厂家取网易云，供旧代码兼容）。</summary>
+    public static string DefaultUrlFor(MusicApiKind kind) => DefaultUrlFor(kind, MusicApiPlatform.Netease);
+
+    /// <summary>数据源 + 厂家对应的推荐默认地址（供设置页「恢复默认」按钮使用）。</summary>
+    public static string DefaultUrlFor(MusicApiKind kind, MusicApiPlatform platform) =>
+        kind == MusicApiKind.Meting ? DefaultMetingUrl : VendorApiProfiles.DefaultUrlFor(platform);
+}
+
+/// <summary>
+/// 单个厂家自建 API 的配置项。
+/// <para>凭证与 <see cref="MusicApiPrefs.Credential"/> 一样是<b>混淆后</b>存放的，不是明文。</para>
+/// </summary>
+public sealed class VendorApiEntry
+{
+    /// <summary>服务根地址（不含结尾斜杠）。</summary>
+    [JsonPropertyName("baseUrl")]
+    public string BaseUrl { get; set; } = "";
+
+    /// <summary>登录凭证（经 <see cref="ApiCredentialProtector"/> 混淆后的字符串）。</summary>
+    [JsonPropertyName("credential")]
+    public string Credential { get; set; } = "";
+
+    /// <summary>已登录昵称（纯展示）。</summary>
+    [JsonPropertyName("accountName")]
+    public string AccountName { get; set; } = "";
+
+    /// <summary>已登录头像地址。</summary>
+    [JsonPropertyName("accountAvatar")]
+    public string AccountAvatar { get; set; } = "";
+
+    /// <summary>是否保存了登录凭证（不代表凭证仍然有效）。</summary>
+    [JsonIgnore]
+    public bool HasCredential => !string.IsNullOrWhiteSpace(Credential);
 }
