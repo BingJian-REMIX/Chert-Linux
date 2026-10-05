@@ -374,6 +374,8 @@ public class MusicPlayerViewModel : ObservableObject
                 OnPropertyChanged(nameof(IsLocal));
                 OnPropertyChanged(nameof(IsOnline));
                 OnPropertyChanged(nameof(IsMcOst));
+                OnPropertyChanged(nameof(IsLocalClient));
+                SyncSourceMode();
             }
         }
     }
@@ -681,6 +683,49 @@ public class MusicPlayerViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// 把当前 <see cref="SourceKind"/> 同步到 <see cref="MusicModeManager"/>（规格实现项 5）。
+    /// <para>映射：Local → <see cref="MusicSourceMode.LocalFolder"/>、
+    /// Online → <see cref="MusicSourceMode.Api"/>、
+    /// Client → <see cref="MusicSourceMode.LocalClient"/>。</para>
+    /// <para><b>为什么必须有这一步</b>：客户端生命周期管理器靠
+    /// <see cref="MusicModeManager.Current"/> 判断「用户是否已切回客户端模式」——
+    /// 不广播模式，当前模式永远停在默认的 Api，结果是<b>用户正在用客户端听歌，
+    /// 暂停超过宽限期后照样被杀</b>。</para>
+    /// </summary>
+    private void SyncSourceMode()
+    {
+        try
+        {
+            var target = SourceKind switch
+            {
+                "Online" => MusicSourceMode.Api,
+                "Client" => MusicSourceMode.LocalClient,
+                _ => MusicSourceMode.LocalFolder,
+            };
+            // ★ 这里注册的是「只停自身音源」的轻量版本，**不能**用 StopPlaybackForClientMode：
+            //   后者会清空播放列表，而模式管理器在「从任一非客户端模式切走」时都会调用它，
+            //   那样用户从本地文件夹切到在线音源会把本地列表一起清掉。
+            MusicModeManager.StopLocalPlayback = StopOwnPlayback;
+            MusicModeManager.SwitchTo(target, ClientPrefs);
+        }
+        catch
+        {
+            // 模式同步属非关键，失败不影响播放
+        }
+    }
+
+    /// <summary>只停掉启动器自己的音源，不动播放列表（供模式管理器回调）。</summary>
+    private void StopOwnPlayback()
+    {
+        try
+        {
+            if (IsPlaying) Host?.Stop();
+            IsPlaying = false;
+        }
+        catch { /* 停止失败不影响模式切换 */ }
+    }
+
     /// <summary>进入本地客户端模式前停掉自身音源（防叠音）。</summary>
     private void StopPlaybackForClientMode()
     {
@@ -710,9 +755,24 @@ public class MusicPlayerViewModel : ObservableObject
                 FileName = ClientExePath,
                 UseShellExecute = true,      // Linux 下 .desktop/AppImage 需经 shell 拉起
             };
-            _clientProcess = Process.Start(psi);
-            ClientRunning = $"已启动：{ClientDisplayName}";
-            ClientStatus = "启动器作为遥控器显示信息，播放由客户端负责";
+            var proc = Process.Start(psi);
+            if (proc is null)
+            {
+                _clientProcess = null;
+                ClientRunning = "";
+                ClientStatus = "启动客户端失败：进程未创建";
+                return;
+            }
+
+            _clientProcess = proc;
+
+            // ★ 登记到生命周期管理器：由启动器拉起的客户端，切到其它音源后
+            //   若长期暂停，会在宽限期结束时被自动结束。
+            ClientLifecycleService.Register(proc.Id, proc.ProcessName);
+            ClientLifecycleService.Instance.Start();
+
+            ClientRunning = $"已启动：{ClientDisplayName}（PID {proc.Id}）";
+            ClientStatus = "启动器作为遥控器显示信息，播放由客户端负责；切换到其它音源后若长期暂停将自动结束它";
         }
         catch (Exception ex)
         {
