@@ -90,6 +90,7 @@ public class MusicPlayerViewModel : ObservableObject
     private string _clientExePath = "";
     private string _clientStatus = "";
     private string _clientRunning = "";
+    private string _clientGraceCountdown = "";
     private System.Diagnostics.Process? _clientProcess;
 
     /// <summary>本地客户端模式设置（含容错归一）。</summary>
@@ -148,6 +149,24 @@ public class MusicPlayerViewModel : ObservableObject
         get => _clientRunning;
         private set => SetField(ref _clientRunning, value);
     }
+
+    /// <summary>
+    /// 宽限期倒计时文案（空 = 未在计时）。
+    /// <para>客户端暂停后开始倒计时，到期启动器会结束该进程 —— 用户必须提前看到，
+    /// 所以这段文字展示在客户端模式的状态卡片里。</para>
+    /// </summary>
+    public string ClientGraceCountdown
+    {
+        get => _clientGraceCountdown;
+        private set
+        {
+            if (SetField(ref _clientGraceCountdown, value))
+                OnPropertyChanged(nameof(HasClientGraceCountdown));
+        }
+    }
+
+    /// <summary>是否显示倒计时行。</summary>
+    public bool HasClientGraceCountdown => !string.IsNullOrEmpty(_clientGraceCountdown);
 
     /// <summary>当前是否处于本地客户端模式（启动器不放音，播放由外部客户端负责）。</summary>
     public bool IsLocalClient => SourceKind == "Client";
@@ -342,6 +361,15 @@ public class MusicPlayerViewModel : ObservableObject
                 await LoadMyPlaylistsAsync();
             });
         }
+
+        // 客户端宽限期：必须在结束进程**之前**就让用户看得见倒计时，
+        // 否则表现就是「我的播放器莫名其妙没了」——这是无声杀进程，不能接受。
+        try
+        {
+            ClientLifecycleService.Instance.GracefulCloseChanged += OnClientGraceChanged;
+            ClientLifecycleService.Instance.ClientsClosed += OnClientsClosed;
+        }
+        catch { /* 生命周期服务不可用时不影响播放器 */ }
     }
 
     public ICommand PlayPauseCommand { get; }
@@ -780,6 +808,45 @@ public class MusicPlayerViewModel : ObservableObject
             ClientRunning = "";
             ClientStatus = $"启动客户端失败：{ex.Message}";
         }
+    }
+
+    /// <summary>宽限期状态变化 → 刷新倒计时文案（每轮 Tick 都会来）。</summary>
+    private void OnClientGraceChanged(int remainingSeconds, int trackedCount)
+    {
+        RunOnUi(() =>
+        {
+            if (remainingSeconds < 0 || trackedCount <= 0)
+            {
+                ClientGraceCountdown = "";
+                return;
+            }
+
+            var m = remainingSeconds / 60;
+            var s = remainingSeconds % 60;
+            var time = m > 0 ? $"{m} 分 {s} 秒" : $"{s} 秒";
+            ClientGraceCountdown = trackedCount > 1
+                ? $"客户端已暂停：{time}后将自动结束 {trackedCount} 个客户端进程"
+                : $"客户端已暂停：{time}后将自动结束客户端进程";
+        });
+    }
+
+    /// <summary>
+    /// 宽限期到期、客户端已被结束 → Toast 告知。
+    /// <para>没有这条提示，用户看到的就是「播放器凭空消失」—— 必须说明是谁关的、为什么关。</para>
+    /// </summary>
+    private void OnClientsClosed(int count)
+    {
+        RunOnUi(() =>
+        {
+            ClientGraceCountdown = "";
+            ToastService.Instance.Show(new ToastOptions
+            {
+                Title = "已结束音乐客户端",
+                Message = count > 1
+                    ? $"{count} 个由启动器拉起的客户端因长时间暂停已被自动结束"
+                    : "由启动器拉起的客户端因长时间暂停已被自动结束",
+            });
+        });
     }
 
     /// <summary>打开文件选择器让用户挑选客户端可执行文件（Avalonia StorageProvider 异步版）。</summary>

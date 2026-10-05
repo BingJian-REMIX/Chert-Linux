@@ -59,6 +59,14 @@ public sealed class ClientLifecycleManager : IDisposable
     /// <summary>状态变化事件（供 UI 显示「将在 X 分钟后关闭客户端」）。</summary>
     public event Action<int, int>? GracefulCloseChanged;   // (剩余秒数, 客户端数)
 
+    /// <summary>
+    /// 宽限期到期、客户端被真正结束之后触发（参数为结束的进程数）。
+    /// <para><b>为什么要单独一个事件</b>：<see cref="GracefulCloseChanged"/> 在「到期结束」
+    /// 与「用户自己关掉了客户端」两种情况下都会报出 (剩余=-1, 数量=0)，
+    /// 订阅者无法区分 —— 而用户显然需要知道「是你的程序把我的客户端关了」。</para>
+    /// </summary>
+    public event Action<int>? ClientsClosed;
+
     public ClientLifecycleManager(
         IClientPlaybackProbe probe,
         Func<MusicClientPrefs> prefsProvider,
@@ -276,7 +284,11 @@ public sealed class ClientLifecycleManager : IDisposable
                 // 进程可能刚好自己退了，忽略
             }
         }
+
+        // 先清状态再报「已结束」：让订阅者看到的 UI 状态是终态，不会闪回倒计时
         Notify();
+        try { ClientsClosed?.Invoke(pids.Count); }
+        catch { /* 订阅者出错不影响管理器 */ }
     }
 
     private void ResetTimer()

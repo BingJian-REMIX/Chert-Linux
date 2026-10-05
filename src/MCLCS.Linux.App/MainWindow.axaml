@@ -396,7 +396,10 @@
                 </Button>
               </StackPanel>
               <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                <controls:PngIcon Token="mic" IconSize="14" VerticalAlignment="Center"/>
+                <!-- 音量图标：拿麦克风当音量会让人误解成录音，故自绘喇叭 -->
+                <Path Width="14" Height="14" VerticalAlignment="Center" Stretch="Uniform"
+                      Fill="{DynamicResource PrimaryForeground}"
+                      Data="M3 9v6h4l5 5V4L7 9H3z M16.5 12A4.5 4.5 0 0 0 14 8v8a4.5 4.5 0 0 0 2.5-4z M14 3.23v2.06a7 7 0 0 1 0 13.42v2.06a9 9 0 0 0 0-17.54z"/>
                 <Slider Minimum="0" Maximum="100" Width="150" Value="{Binding Volume, Mode=TwoWay}"
                         VerticalAlignment="Center"/>
                 <TextBlock Text="{Binding Volume, Mode=OneWay}" VerticalAlignment="Center"

@@ -62,6 +62,13 @@ public sealed class ClientLifecycleService : IDisposable
         remove => _manager.GracefulCloseChanged -= value;
     }
 
+    /// <summary>宽限期到期、客户端被真正结束之后触发（参数为结束的进程数）。</summary>
+    public event Action<int>? ClientsClosed
+    {
+        add => _manager.ClientsClosed += value;
+        remove => _manager.ClientsClosed -= value;
+    }
+
     private void OnModeChanged(MusicSourceMode mode)
     {
         // 进入本地客户端模式时确保轮询在跑（首次使用客户端功能才有实例）
