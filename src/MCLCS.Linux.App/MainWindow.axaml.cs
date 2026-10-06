@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Templates;
 using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
@@ -166,50 +167,151 @@ public partial class MainWindow : Window
     // 标题栏下载按钮：打开下载队列（锚定到该按钮中心弹出）
     private void DownloadBtn_Click(object? sender, RoutedEventArgs e) => QueueShow(sender as Control);
 
-    // 下载队列：以标题栏下载按钮为锚点向下弹出（水平中线对齐按钮中心 + 弹出动画）
+    // 下载队列：以标题栏下载按钮为锚点向下弹出（水平中线对齐按钮中心 + 弹出动画）。
+    //
+    // 这里直接绑到 DownloadPageViewModel.Instance 的真实队列。该 VM 是进程内单例
+    // （DownloadPageView 每次切页都 new，但 DataContext 用的是同一个 Instance），
+    // 所以这里看到的与下载页是同一份队列、切页也不丢进度。
+    // 此前本方法构造的是两条硬编码假数据（"Sodium 0.5.8" / "BSL Shaders v8.3"），
+    // 无论实际有没有下载都永远显示这两行，用户无从判断真实状态。
     private async void QueueShow(Control? anchor = null)
     {
-        await DialogService.Instance.ShowAsync(new DialogOptions
+        var vm = DownloadPageViewModel.Instance;
+        var result = await DialogService.Instance.ShowAsync(new DialogOptions
         {
             Title = "下载队列",
             Width = 420,
             Anchor = anchor ?? DownloadBtn,
-            Content = BuildQueueContent(),
-            Buttons = new[] { new DialogButton("开始下载", "start", DialogButtonKind.Primary, isDefault: true) }
+            Content = BuildQueueContent(vm),
+            Buttons = new[]
+            {
+                new DialogButton("开始下载", "start", DialogButtonKind.Primary, isDefault: true),
+                new DialogButton("前往下载页", "goto", DialogButtonKind.Ghost)
+            }
         });
+
+        if (result is not string act) return;   // 点遮罩 / ESC 关闭
+
+        if (act == "start")
+        {
+            if (vm.Queue.Count == 0)
+            {
+                ToastService.Instance.Show(new ToastOptions
+                {
+                    Title = "队列为空",
+                    Message = "先在下载页把资源加入队列，再点这里开始。"
+                });
+                return;
+            }
+            if (vm.StartQueueCommand.CanExecute(null))
+                vm.StartQueueCommand.Execute(null);
+            else
+                ToastService.Instance.Show(new ToastOptions
+                {
+                    Title = "队列正在下载中",
+                    Message = "本轮还没结束；新加入的项会由当前轮次一并处理，无需重复点开始。"
+                });
+        }
+        else if (act == "goto")
+        {
+            _vm.SelectedTab = MainTabs.Get(MainTabKind.Download);
+            _vm.SelectedSidebarId = "minecraft";
+            SyncSidebarSelection();
+            ShowPage();
+            PlayContentEnter();
+        }
     }
 
-    private Control BuildQueueContent()
+    /// <summary>队列弹窗主体：计数 + 空态 + 逐项（标题 / 状态 / 进度 / 取消）。
+    /// 全部走绑定，下载过程中状态与进度会实时刷新。</summary>
+    private Control BuildQueueContent(DownloadPageViewModel vm)
     {
-        var sp = new StackPanel { Spacing = 8 };
-        sp.Children.Add(QueueItem("Sodium 0.5.8 (Fabric 1.21.4)", "下载中 42%", 42));
-        sp.Children.Add(QueueItem("BSL Shaders v8.3", "等待中", 0));
-        return sp;
+        var root = new StackPanel { Spacing = 8 };
+
+        var count = new TextBlock
+        {
+            FontSize = 12,
+            Opacity = 0.75,
+            DataContext = vm,
+            Foreground = (IBrush?)Application.Current.FindResource("SecondaryForeground")
+        };
+        count.Bind(TextBlock.TextProperty,
+            new Avalonia.Data.Binding("QueueCount") { StringFormat = "共 {0} 项" });
+        root.Children.Add(count);
+
+        var empty = new TextBlock
+        {
+            Text = "队列为空，去下载页把资源加入队列吧",
+            FontSize = 12,
+            Opacity = 0.6,
+            DataContext = vm,
+            Margin = new Thickness(0, 10),
+            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center,
+            Foreground = (IBrush?)Application.Current.FindResource("SecondaryForeground")
+        };
+        empty.Bind(Visual.IsVisibleProperty,
+            new Avalonia.Data.Binding("HasQueue") { Converter = new InverseBoolConverter() });
+        root.Children.Add(empty);
+
+        var list = new ItemsControl { ItemsSource = vm.Queue };
+        list.ItemTemplate = new FuncDataTemplate<DownloadQueueItem>((item, _) => BuildQueueItemRow(vm, item));
+        root.Children.Add(new ScrollViewer
+        {
+            Content = list,
+            MaxHeight = 260,
+            VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto
+        });
+        return root;
     }
 
-    private Control QueueItem(string title, string status, double pct)
+    /// <summary>单条队列项：标题 / 状态（失败原因挂 ToolTip）/ 进度条 / 取消按钮。</summary>
+    private Control BuildQueueItemRow(DownloadPageViewModel vm, DownloadQueueItem item)
     {
         var grid = new Grid
         {
-            ColumnDefinitions = new ColumnDefinitions("*,Auto"),
+            ColumnDefinitions = new ColumnDefinitions("*,Auto,Auto"),
             Margin = new Thickness(0, 4)
         };
-        grid.Children.Add(new TextBlock
+
+        var title = new TextBlock
         {
-            Text = title,
             FontSize = 12,
-            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center
-        });
-        grid.Children.Add(new TextBlock
+            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+            TextTrimming = Avalonia.Media.TextTrimming.CharacterEllipsis
+        };
+        title.Bind(TextBlock.TextProperty, new Avalonia.Data.Binding("Title"));
+
+        var status = new TextBlock
         {
-            Text = status,
             FontSize = 12,
-            Foreground = (IBrush?)Application.Current.FindResource("SecondaryForeground"),
-            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right
-        });
+            Margin = new Thickness(8, 0, 0, 0),
+            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
+            Foreground = (IBrush?)Application.Current.FindResource("SecondaryForeground")
+        };
+        status.Bind(TextBlock.TextProperty, new Avalonia.Data.Binding("Status"));
+        // 失败原因挂到状态文本上悬停可见（与下载页一致）；成功时为空，不会弹空提示
+        status.Bind(ToolTip.TipProperty, new Avalonia.Data.Binding("ErrorMessage"));
+
+        var cancel = new Button
+        {
+            Content = "取消",
+            FontSize = 12,
+            Padding = new Thickness(8, 2),
+            Margin = new Thickness(8, 0, 0, 0),
+            Command = vm.CancelItemCommand,
+            CommandParameter = item
+        };
+
+        Grid.SetColumn(title, 0);
+        Grid.SetColumn(status, 1);
+        Grid.SetColumn(cancel, 2);
+        grid.Children.Add(title);
+        grid.Children.Add(status);
+        grid.Children.Add(cancel);
+
         var bar = new ProgressBar
         {
-            Value = pct,
             Minimum = 0,
             Maximum = 100,
             Height = 8,
@@ -217,6 +319,8 @@ public partial class MainWindow : Window
             Foreground = (IBrush?)Application.Current.FindResource("AccentBrush"),
             Background = (IBrush?)Application.Current.FindResource("ProgressBackground")
         };
+        bar.Bind(ProgressBar.ValueProperty, new Avalonia.Data.Binding("Progress"));
+
         var wrap = new StackPanel { Spacing = 2 };
         wrap.Children.Add(grid);
         wrap.Children.Add(bar);
