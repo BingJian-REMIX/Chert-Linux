@@ -315,8 +315,8 @@ public class VersionSettingsViewModel : ObservableObject
             });
     }
 
-    public ICommand RemoveItemCommand => new RelayCommand(RemoveItem);
-    private void RemoveItem(object? fileName)
+    public ICommand RemoveItemCommand => new AsyncRelayCommand(RemoveItemAsync);
+    private async Task RemoveItemAsync(object? fileName)
     {
         var name = fileName as string;
         if (string.IsNullOrEmpty(name)) return;
@@ -329,6 +329,20 @@ public class VersionSettingsViewModel : ObservableObject
             ModTabKind.Shaders => Path.Combine(dir, "shaderpacks", name),
             _ => Path.Combine(dir, name)
         };
+
+        // 【修复】删版本有二次确认，删 Mod / 材质包 / 光影却没有：误点一下文件就没了
+        var confirm = await DialogService.Instance.ShowAsync(new DialogOptions
+        {
+            Title = "移除文件",
+            Content = $"确定要移除「{name}」吗？\n\n{target}\n\n该操作不可恢复。",
+            Buttons = new[]
+            {
+                new DialogButton("移除", "remove", DialogButtonKind.Primary, isDefault: true),
+                new DialogButton("取消", "cancel")
+            }
+        });
+        if (!string.Equals(confirm as string, "remove", StringComparison.Ordinal)) return;
+
         try { if (File.Exists(target)) File.Delete(target); else if (Directory.Exists(target)) Directory.Delete(target, true); }
         catch (Exception ex) { Status = $"删除失败：{ex.Message}"; }
         RefreshInstalled();

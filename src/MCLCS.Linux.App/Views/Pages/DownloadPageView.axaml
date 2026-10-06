@@ -193,18 +193,28 @@
               <ColumnDefinition Width="120"/>
               <ColumnDefinition Width="60"/>
               <ColumnDefinition Width="60"/>
+              <ColumnDefinition Width="60"/>
+              <ColumnDefinition Width="60"/>
             </Grid.ColumnDefinitions>
             <StackPanel Grid.Column="0">
               <TextBlock FontWeight="Bold" Text="{Binding Title}"/>
               <ProgressBar Minimum="0" Maximum="100" Value="{Binding Progress}" Height="10"
                            Foreground="{DynamicResource AccentBrush}" Background="{DynamicResource ProgressBackground}"/>
             </StackPanel>
-            <TextBlock Grid.Column="1" Text="{Binding Status}" VerticalAlignment="Center" Margin="8,0,0,0"/>
+            <!-- 失败时把原因挂在 ToolTip 上：状态栏只写「失败」两个字，用户无从判断 -->
+            <TextBlock Grid.Column="1" Text="{Binding Status}" VerticalAlignment="Center" Margin="8,0,0,0"
+                       ToolTip.Tip="{Binding ErrorMessage}"/>
             <Button Grid.Column="2" Content="暂停" Padding="2" Margin="4,0"
                     Command="{Binding DataContext.PauseItemCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                     CommandParameter="{Binding}"/>
             <Button Grid.Column="3" Content="取消" Padding="2"
                     Command="{Binding DataContext.CancelItemCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                    CommandParameter="{Binding}"/>
+            <Button Grid.Column="4" Content="继续" Padding="2" Margin="4,0"
+                    Command="{Binding DataContext.ResumeItemCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                    CommandParameter="{Binding}"/>
+            <Button Grid.Column="5" Content="重试" Padding="2" Margin="4,0"
+                    Command="{Binding DataContext.RetryItemCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                     CommandParameter="{Binding}"/>
           </Grid>
         </DataTemplate>

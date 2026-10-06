@@ -116,6 +116,67 @@ public static class MirrorPolicy
         throw new HttpRequestException($"所有镜像源均失败：{string.Join(", ", urls)}", last);
     }
 
+    /// <summary>
+    /// 依次尝试候选 URL，把内容<b>流式写入</b> <paramref name="tempPath"/>（.part）。
+    /// 支持断点续传：已存在 .part 时带上 <c>Range</c> 头续传；服务端不支持 Range
+    /// （返回 200 而非 206）则自动从头覆盖写。任一步失败都保留 .part，下次可继续。
+    /// <para>此前是整包读进 MemoryStream 再 WriteAllBytes：既没有续传，
+    /// 大文件还会把内存顶上去。</para>
+    /// </summary>
+    public static async Task DownloadToFileWithFallback(IEnumerable<string> urls, HttpClient client,
+        string tempPath, long expectedSize = 0, IProgress<double>? progress = null,
+        CancellationToken ct = default)
+    {
+        var existing = File.Exists(tempPath) ? new FileInfo(tempPath).Length : 0;
+        // 残留比目标还大 = 目标换过 / 上次写坏了，从头再来
+        if (expectedSize > 0 && existing > expectedSize)
+        {
+            File.Delete(tempPath);
+            existing = 0;
+        }
+
+        Exception? last = null;
+        foreach (var url in urls)
+        {
+            try
+            {
+                using var req = new HttpRequestMessage(HttpMethod.Get, url);
+                if (existing > 0)
+                    req.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(existing, null);
+
+                using var resp = await client.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ct);
+                resp.EnsureSuccessStatusCode();
+
+                var resumed = resp.StatusCode == System.Net.HttpStatusCode.PartialContent;
+                var start = resumed ? existing : 0L;
+                var body = resp.Content.Headers.ContentLength ?? -1L;
+                var total = body > 0 ? start + body : -1L;
+
+                await using var stream = await resp.Content.ReadAsStreamAsync(ct);
+                await using var fs = new FileStream(tempPath,
+                    resumed ? FileMode.Append : FileMode.Create, FileAccess.Write, FileShare.None);
+
+                var buffer = new byte[8192];
+                long read = 0;
+                int n;
+                while ((n = await stream.ReadAsync(buffer, ct)) > 0)
+                {
+                    await fs.WriteAsync(buffer.AsMemory(0, n), ct);
+                    read += n;
+                    if (total > 0) progress?.Report((double)(start + read) / total);
+                }
+                return;
+            }
+            catch (Exception ex)
+            {
+                last = ex;
+                // 换下一个镜像前重算已写入量：可能已经续传了一部分
+                existing = File.Exists(tempPath) ? new FileInfo(tempPath).Length : 0;
+            }
+        }
+        throw new HttpRequestException("所有镜像源均失败", last);
+    }
+
     /// <summary>依次尝试候选 URL 下载到流，返回首次成功的字节数组。</summary>
     public static async Task<byte[]> DownloadBytesWithFallback(IEnumerable<string> urls, HttpClient client, IProgress<double>? progress, CancellationToken ct)
     {

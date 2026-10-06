@@ -8,14 +8,24 @@ namespace MCLCS.Core.Download;
 public class HttpDownloader : IDownloader
 {
     private readonly HttpClient _client;
-    private readonly int _maxConcurrency;
     private readonly ILogger? _logger;
+    private int _maxConcurrency;
 
     public HttpDownloader(HttpClient client, int maxConcurrency = 8, ILogger? logger = null)
     {
         _client = client;
         _maxConcurrency = Math.Max(1, maxConcurrency);
         _logger = logger;
+    }
+
+    /// <summary>
+    /// 并发上限。可运行时调整，用于跟随设置里的「最大并发下载数」
+    /// （此前只能在构造时定死，设置项改了也不生效）。
+    /// </summary>
+    public int MaxConcurrency
+    {
+        get => _maxConcurrency;
+        set => _maxConcurrency = Math.Max(1, value);
     }
 
     public async Task DownloadAsync(DownloadItem item, IProgress<double>? progress = null, CancellationToken ct = default)
@@ -36,9 +46,8 @@ public class HttpDownloader : IDownloader
         if (dir is not null) Directory.CreateDirectory(dir);
         var tmp = item.Destination + ".part";
 
-        var data = await MirrorPolicy.DownloadBytesWithFallback(item.Urls, _client, progress, ct);
-
-        await File.WriteAllBytesAsync(tmp, data, ct);
+        // 流式写入 .part 并支持断点续传：中途取消 / 断网后重下可接着上次的进度
+        await MirrorPolicy.DownloadToFileWithFallback(item.Urls, _client, tmp, item.ExpectedSize ?? 0, progress, ct);
 
         // 校验
         if (!HashUtil.VerifySize(tmp, item.ExpectedSize) || !HashUtil.VerifySha1(tmp, item.ExpectedSha1))

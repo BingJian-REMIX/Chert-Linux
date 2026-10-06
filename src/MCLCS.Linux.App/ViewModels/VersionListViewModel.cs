@@ -197,6 +197,28 @@ public class VersionListViewModel : ObservableObject
     {
         var list = await JavaDetector.DetectAsync();
         if (list.Count == 0) return null;
-        return JavaDetector.SelectForVersion(list, gameRoot, versionId, javaPath);
+        var java = JavaDetector.SelectForVersion(list, gameRoot, versionId, javaPath);
+        if (java is null) return null;
+
+        // 【修复】版本不符合该版本所需时明确提示：此前会静默用不兼容的 Java 启动
+        // （拿 Java 8 跑 1.21 会当场崩，用户只看到游戏起不来、不知道为什么）。
+        var required = JavaDetector.RequiredMajorForVersionId(gameRoot, versionId);
+        var ok = required == 8 ? java.MajorVersion == 8 : java.MajorVersion >= required;
+        if (!ok)
+        {
+            try
+            {
+                ToastService.Instance.Show(new ToastOptions
+                {
+                    Title = "Java 版本可能不兼容",
+                    Message = $"该版本需要 Java {required}，实际将使用 Java {java.MajorVersion}（{java.JavaExe}）。"
+                              + "若无法进入游戏，请在「设置 → 启动」更换 Java。",
+                    DurationMs = 6000,
+                    Danger = true
+                });
+            }
+            catch { /* 提示失败不阻断启动 */ }
+        }
+        return java;
     }
 }

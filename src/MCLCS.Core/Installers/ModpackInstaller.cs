@@ -276,6 +276,17 @@ public class ModpackInstaller
 
                 var destDir = Path.GetDirectoryName(dest);
                 if (destDir is not null) Directory.CreateDirectory(destDir);
+                // 【修复】整合包自带的 config / options 会静默覆盖用户改过的设置。
+                // 覆盖前把原文件留一份 .mclcs-bak，并在日志里点名，用户至少能找回。
+                if (File.Exists(dest))
+                {
+                    try
+                    {
+                        File.Copy(dest, dest + ".mclcs-bak", overwrite: true);
+                        _logger?.Log($"已备份被覆盖的文件：{Path.GetFileName(dest)}（原文件另存为 .mclcs-bak）");
+                    }
+                    catch { /* 备份失败不阻断安装 */ }
+                }
                 File.Copy(file, dest, overwrite: true);
             }
         }

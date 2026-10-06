@@ -84,9 +84,13 @@ public static class JavaInstaller
             throw new InvalidDataException("下载的 Java 安装包不是有效的 ZIP 文件");
 
         var extractDir = Path.Combine(runtimeDir, $"jdk-{major}");
-        if (Directory.Exists(extractDir)) Directory.Delete(extractDir, true);
-        Unzip.ExtractToDirectory(zipPath, extractDir);
+        // 【修复】此前先把已有的 jdk-{major} 整个删掉再解压：解压途中失败 / 断电，
+        // 用户原有的 Java 也没了。改为解压到暂存目录，成功后原子替换。
+        var staging = Path.Combine(runtimeDir, $"jdk-{major}.staging");
+        if (Directory.Exists(staging)) Directory.Delete(staging, true);
+        Unzip.ExtractToDirectory(zipPath, staging);
         File.Delete(zipPath);
+        ReplaceDirectory(staging, extractDir);
 
         // 顶层文件夹形如 jdk-21.0.x+xx，将其内容归一到 extractDir
         FlattenSingleTopFolder(extractDir);
@@ -132,9 +136,11 @@ public static class JavaInstaller
             throw new InvalidDataException("下载的 Oracle JDK 不是有效的 ZIP 文件");
 
         var extractDir = Path.Combine(runtimeDir, $"jdk-oracle-{major}");
-        if (Directory.Exists(extractDir)) Directory.Delete(extractDir, true);
-        Unzip.ExtractToDirectory(zipPath, extractDir);
+        var staging = Path.Combine(runtimeDir, $"jdk-oracle-{major}.staging");
+        if (Directory.Exists(staging)) Directory.Delete(staging, true);
+        Unzip.ExtractToDirectory(zipPath, staging);
         File.Delete(zipPath);
+        ReplaceDirectory(staging, extractDir);
 
         FlattenSingleTopFolder(extractDir);
 
@@ -146,6 +152,29 @@ public static class JavaInstaller
         logger?.Log($"Oracle JDK 安装完成：{raw} @ {javaExe}");
 
         return new JavaInfo { JavaExe = javaExe, MajorVersion = majorVer, RawVersion = raw };
+    }
+
+    /// <summary>
+    /// 用 staging 覆盖 target：先把旧目录改名为 .old，移入新目录成功后才删除旧目录。
+    /// 任何一步失败都把旧目录搬回去，绝不留下「新旧皆无」的状态。
+    /// </summary>
+    private static void ReplaceDirectory(string staging, string target)
+    {
+        var backup = target + ".old";
+        if (Directory.Exists(backup)) Directory.Delete(backup, true);
+        var hadOld = Directory.Exists(target);
+        if (hadOld) Directory.Move(target, backup);
+        try
+        {
+            Directory.Move(staging, target);
+        }
+        catch
+        {
+            if (hadOld && !Directory.Exists(target) && Directory.Exists(backup))
+                Directory.Move(backup, target);
+            throw;
+        }
+        if (hadOld && Directory.Exists(backup)) Directory.Delete(backup, true);
     }
 
     /// <summary>若解压后顶层只有一个子文件夹，将其下内容提升一层，统一目录结构。</summary>

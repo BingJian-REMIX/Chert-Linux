@@ -26,6 +26,26 @@ public class App : Application
         // 同步下载源偏好到 MirrorPolicy（设置 → 下载），使各镜像 URL 按用户优先级重排。
         MirrorPolicy.Preference = ProfileStore.Load(GameConstants.DefaultGameRoot).DownloadSource;
 
+        // 命令（ICommand）里未捕获的异常：Toast 提示，不再默默消失或冒泡成崩溃。
+        // 与 WPF App.xaml.cs 里挂的 CommandErrors.Reporter 同源（「没装 Java」这类
+        // 可预期的业务失败此前在 Linux 端是直接无声失败的）。
+        MCLCS.Core.Mvvm.CommandErrors.Reporter = ex =>
+        {
+            if (ex is OperationCanceledException) return;
+            var msg = string.IsNullOrWhiteSpace(ex.Message) ? ex.GetType().Name : ex.Message;
+            try
+            {
+                ToastService.Instance.Show(new ToastOptions
+                {
+                    Title = "操作未完成",
+                    Message = msg,
+                    DurationMs = 5000,
+                    Danger = true
+                });
+            }
+            catch { /* 提示失败不影响主流程 */ }
+        };
+
         // 主题接入：优先读取持久化偏好（mclcs_theme.json）；
         // 无偏好文件时默认暗色，保持 Linux 版既定外观。
         ThemeManager.LoadPreference(AppConfig.DataRoot);

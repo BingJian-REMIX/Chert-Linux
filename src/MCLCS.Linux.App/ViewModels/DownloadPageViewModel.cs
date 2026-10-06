@@ -232,7 +232,27 @@ public class DownloadPageViewModel : ObservableObject
     public bool IsBusy
     {
         get => _isBusy;
-        set => SetField(ref _isBusy, value);
+        set
+        {
+            if (!SetField(ref _isBusy, value)) return;
+            // 忙碌态变化后刷新命令可用性：此前从不刷新，按钮一旦变灰就再也不亮
+            RaiseCommandsCanExecuteChanged();
+        }
+    }
+
+    /// <summary>刷新受 IsBusy 影响的命令（CanExecute 依赖忙碌态，但没人通知）。</summary>
+    private void RaiseCommandsCanExecuteChanged()
+    {
+        ICommand[] commands =
+        {
+            SearchCommand, StartQueueCommand, InstallModpackCommand, DownloadDetailCommand,
+            DownloadExtraCommand
+        };
+        foreach (var c in commands)
+        {
+            if (c is RelayCommand rc) rc.RaiseCanExecuteChanged();
+            else if (c is AsyncRelayCommand arc) arc.RaiseCanExecuteChanged();
+        }
     }
 
     public PixelMapDetail? CurrentMapDetail
@@ -353,6 +373,12 @@ public class DownloadPageViewModel : ObservableObject
     public ICommand StartQueueCommand { get; }
     public ICommand PauseItemCommand { get; }
     public ICommand CancelItemCommand { get; }
+
+    /// <summary>继续：把「已暂停」的项放回队列（此前暂停后只剩取消，取消即从 0 重下）。</summary>
+    public ICommand ResumeItemCommand { get; }
+
+    /// <summary>重试：失败 / 已取消的项再来一次（配合断点续传，不会从头开始）。</summary>
+    public ICommand RetryItemCommand { get; }
     public ICommand OpenDetailCommand { get; }
     public ICommand ChangeMapPageCommand { get; }
     public ICommand SetModpackSourceCommand { get; }
@@ -375,6 +401,8 @@ public class DownloadPageViewModel : ObservableObject
         StartQueueCommand = new AsyncRelayCommand(_ => StartQueueAsync(), _ => !IsBusy);
         PauseItemCommand = new RelayCommand(p => PauseItem(p as DownloadQueueItem));
         CancelItemCommand = new RelayCommand(p => CancelItem(p as DownloadQueueItem));
+        ResumeItemCommand = new RelayCommand(p => ResumeItem(p as DownloadQueueItem));
+        RetryItemCommand = new RelayCommand(p => RetryItem(p as DownloadQueueItem));
         OpenDetailCommand = new RelayCommand(p => OpenDetail(p as DownloadCardItem));
         ChangeMapPageCommand = new RelayCommand(p => ChangeMapPage(p as string));
         SetModpackSourceCommand = new RelayCommand(p => SetModpackSource(p as string));
@@ -768,60 +796,136 @@ public class DownloadPageViewModel : ObservableObject
 
     private async Task StartQueueAsync()
     {
+        if (IsBusy) return;     // 已有轮次在跑，新加入的项由该轮次顺带处理
         IsBusy = true;
         try
         {
-            foreach (var item in Queue.Where(q => q.Status is "排队中" or "已暂停").ToList())
+            while (true)
             {
-                item.Cts = new CancellationTokenSource();
-                item.Status = item.Kind == "version" ? "安装中" : "下载中";
-                item.Progress = 0;
+                // 只自动拾取「排队中」：「已暂停」必须用户点「继续」才回来，
+                // 否则暂停会在下一轮被立刻拉起，等于没有暂停。
+                var pending = Queue.Where(q => q.Status == "排队中").ToList();
+                if (pending.Count == 0) break;
 
-                var local = item;
-                var ok = false;
-                try
-                {
-                    ok = local.Kind switch
-                    {
-                        "modpack" => (await LauncherService.Instance.InstallModpackAsync(
-                            local.Source, local.ProjectId, local.GameVersion, local.Title,
-                            Progress(local), local.Cts.Token)) is not null,
-                        "map" => await LauncherService.Instance.DownloadMapAsync(
-                            local.Slug ?? "", Progress(local), local.Cts.Token),
-                        "version" => (await LauncherService.Instance.InstallVersionAsync(
-                            local.ProjectId, local.InstallLoader, Progress(local), local.Cts.Token)) is not null,
-                        _ => await LauncherService.Instance.DownloadModAsync(
-                            local.ProjectId, local.TargetDir, local.GameVersion, local.Loader,
-                            Progress(local), local.Cts.Token)
-                    };
-
-                    if (local.Cts.Token.IsCancellationRequested && local.Status != "已暂停")
-                        local.Status = "已取消";
-                    else
-                        local.Status = ok ? "已完成" : "失败";
-                }
-                catch (OperationCanceledException)
-                {
-                    local.Status = "已取消";
-                }
-                catch
-                {
-                    local.Status = "失败";
-                }
-
-                local.Progress = local.Status == "已完成" ? 100 : local.Progress;
+                await RunPendingAsync(pending);
             }
+
+            // 失败项保留在队列里：此前失败原因无从查起、也没法重试
+            var failed = Queue.Count(q => q.Status == "失败");
+            var done = Queue.Count(q => q.Status == "已完成");
 
             if (MainViewModel.Instance is { } mv)
             {
-                mv.DownloadText = "下载队列完成";
                 mv.DownloadProgress = 0;
+                mv.DownloadText = failed > 0
+                    ? $"下载完成，{failed} 项失败"
+                    : done > 0 ? $"下载队列完成（{done} 项）" : "下载队列完成";
+            }
+
+            if (failed > 0)
+            {
+                try
+                {
+                    ToastService.Instance.Show(new ToastOptions
+                    {
+                        Title = "下载未完成",
+                        Message = $"{failed} 项下载失败，已保留在队列中：可点「重试」继续（已下载的部分会续传）。",
+                        DurationMs = 6000,
+                        Danger = true
+                    });
+                }
+                catch { /* 提示失败不影响队列结果 */ }
             }
         }
         finally
         {
             IsBusy = false;
         }
+    }
+
+    /// <summary>并发跑一批队列项，上限跟随设置里的「最大并发下载数」（此前是死板的串行）。</summary>
+    private async Task RunPendingAsync(List<DownloadQueueItem> batch)
+    {
+        var limit = Math.Max(1, MCLCS.Core.Profiles.ProfileStore.Load(GameConstants.DefaultGameRoot).MaxConcurrentDownloads);
+        using var sem = new SemaphoreSlim(limit);
+        await Task.WhenAll(batch.Select(async item =>
+        {
+            await sem.WaitAsync();
+            try { await RunOneAsync(item); }
+            finally { sem.Release(); }
+        }));
+    }
+
+    /// <summary>执行单个队列项并回写状态。</summary>
+    private async Task RunOneAsync(DownloadQueueItem local)
+    {
+        local.Cts = new CancellationTokenSource();
+        local.Status = local.Kind == "version" ? "安装中" : "下载中";
+        local.Progress = 0;
+
+        var ok = false;
+        try
+        {
+            ok = local.Kind switch
+            {
+                "modpack" => (await LauncherService.Instance.InstallModpackAsync(
+                    local.Source, local.ProjectId, local.GameVersion, local.Title,
+                    Progress(local), local.Cts.Token)) is not null,
+                "map" => await LauncherService.Instance.DownloadMapAsync(
+                    local.Slug ?? "", Progress(local), local.Cts.Token),
+                "version" => (await LauncherService.Instance.InstallVersionAsync(
+                    local.ProjectId, local.InstallLoader, Progress(local), local.Cts.Token)) is not null,
+                _ => await LauncherService.Instance.DownloadModAsync(
+                    local.ProjectId, local.TargetDir, local.GameVersion, local.Loader,
+                    Progress(local), local.Cts.Token)
+            };
+
+            if (local.Cts.Token.IsCancellationRequested && local.Status != "已暂停")
+                local.Status = "已取消";
+            else
+                local.Status = ok ? "已完成" : "失败";
+        }
+        catch (OperationCanceledException)
+        {
+            local.Status = "已取消";
+        }
+        catch (Exception ex)
+        {
+            // 把原因留在项上并弹一条 Toast：「失败静默三连」到此结束
+            local.ErrorMessage = ex.Message;
+            local.Status = "失败";
+            try
+            {
+                ToastService.Instance.Show(new ToastOptions
+                {
+                    Title = "下载失败",
+                    Message = $"{local.Title}：{ex.Message}",
+                    DurationMs = 6000,
+                    Danger = true
+                });
+            }
+            catch { /* 提示失败不影响队列结果 */ }
+        }
+
+        local.Progress = local.Status == "已完成" ? 100 : local.Progress;
+    }
+
+    /// <summary>继续一个已暂停的项。</summary>
+    private void ResumeItem(DownloadQueueItem? item)
+    {
+        if (item is null || item.Status != "已暂停") return;
+        item.Status = "排队中";
+        if (!IsBusy) _ = StartQueueAsync();
+    }
+
+    /// <summary>重试一个失败 / 已取消的项。</summary>
+    private void RetryItem(DownloadQueueItem? item)
+    {
+        if (item is null || item.Status is not ("失败" or "已取消")) return;
+        item.ErrorMessage = "";
+        item.Status = "排队中";
+        item.Progress = 0;
+        if (!IsBusy) _ = StartQueueAsync();
     }
 
     private static IProgress<double> Progress(DownloadQueueItem item) =>

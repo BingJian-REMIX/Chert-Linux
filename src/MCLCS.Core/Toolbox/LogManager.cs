@@ -35,6 +35,22 @@ public static class LogManager
     public static string LogsDir(string gameRoot) => Path.Combine(gameRoot, "logs");
     public static string CrashReportsDir(string gameRoot) => Path.Combine(gameRoot, "crash-reports");
 
+    /// <summary>
+    /// 追加一行到启动器自身日志（logs/mclcs_launcher.log），可在工具箱「日志」页查看。
+    /// 写入失败静默：日志永远不该阻塞主流程。
+    /// </summary>
+    public static void Append(string gameRoot, string message)
+    {
+        try
+        {
+            var dir = LogsDir(gameRoot);
+            Directory.CreateDirectory(dir);
+            File.AppendAllText(Path.Combine(dir, "mclcs_launcher.log"),
+                $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {message}\n");
+        }
+        catch { /* 忽略 */ }
+    }
+
     /// <summary>列出全部日志与崩溃报告文件（按修改时间倒序）。</summary>
     public static List<LogFileInfo> ListLogs(string gameRoot)
     {
