@@ -170,18 +170,25 @@ public class LauncherService : ILogger
     public async Task<string?> InstallVersionAsync(string mcVersion, string loader,
         IProgress<double>? progress = null, CancellationToken ct = default)
     {
+        // 进度适配：各安装器上报 (已完成, 总数)，这里折算成 0-1 的 double。
+        // 此前一律传 null —— 进度参数声明了却从不下发，安装页进度条永远不动。
+        IProgress<(int Done, int Total)>? stageProgress = progress is null
+            ? null
+            : new Progress<(int Done, int Total)>(p =>
+                progress.Report(p.Total <= 0 ? 0 : Math.Clamp((double)p.Done / p.Total, 0, 1)));
+
         switch (loader.ToLowerInvariant())
         {
             case "fabric":
-                return await new FabricInstaller(GameRoot, ApiClient, _downloader, this).InstallAsync(mcVersion, null, ct);
+                return await new FabricInstaller(GameRoot, ApiClient, _downloader, this).InstallAsync(mcVersion, stageProgress, ct);
             case "forge":
-                return await new ForgeInstaller(GameRoot, ApiClient, _downloader, this).InstallAsync(mcVersion, null, ct);
+                return await new ForgeInstaller(GameRoot, ApiClient, _downloader, this).InstallAsync(mcVersion, stageProgress, ct);
             case "neoforge":
-                return await new NeoForgeInstaller(GameRoot, ApiClient, _downloader, this).InstallAsync(mcVersion, null, ct);
+                return await new NeoForgeInstaller(GameRoot, ApiClient, _downloader, this).InstallAsync(mcVersion, stageProgress, ct);
             case "quilt":
-                return await new QuiltInstaller(GameRoot, ApiClient, _downloader, this).InstallAsync(mcVersion, null, ct);
+                return await new QuiltInstaller(GameRoot, ApiClient, _downloader, this).InstallAsync(mcVersion, stageProgress, ct);
             default:
-                await new VanillaInstaller(GameRoot, ApiClient, _downloader, this).InstallAsync(mcVersion, null, ct);
+                await new VanillaInstaller(GameRoot, ApiClient, _downloader, this).InstallAsync(mcVersion, stageProgress, ct);
                 return mcVersion;
         }
     }

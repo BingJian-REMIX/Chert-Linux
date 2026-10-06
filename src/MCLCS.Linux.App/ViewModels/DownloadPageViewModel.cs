@@ -778,6 +778,16 @@ public class DownloadPageViewModel : ObservableObject
         }
 
         var loader = ParseLoader(SelectedLoader);
+
+        // 去重：重复点「加入队列」会把同一资源塞两份 —— 下载两遍、覆盖同一个文件。
+        var dedupKey = $"{kind}|{card.Id}|{dir}|{SelectedGameVersion ?? ""}|{loader}|none";
+        var dup = Queue.FirstOrDefault(q => q.IsActive && q.DedupKey == dedupKey);
+        if (dup is not null)
+        {
+            StatusMessage = $"已在队列中（{dup.Status}），无需重复添加：{card.Title}";
+            return;
+        }
+
         Queue.Add(new DownloadQueueItem
         {
             ProjectId = card.Id,

@@ -205,15 +205,19 @@
             <TextBlock Grid.Column="1" Text="{Binding Status}" VerticalAlignment="Center" Margin="8,0,0,0"
                        ToolTip.Tip="{Binding ErrorMessage}"/>
             <Button Grid.Column="2" Content="暂停" Padding="2" Margin="4,0"
+                    ToolTip.Tip="只有排队中 / 下载中的任务可以暂停"
                     Command="{Binding DataContext.PauseItemCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                     CommandParameter="{Binding}"/>
             <Button Grid.Column="3" Content="取消" Padding="2"
+                    ToolTip.Tip="取消后可从队列里点「重试」继续（已下载的部分会续传）"
                     Command="{Binding DataContext.CancelItemCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                     CommandParameter="{Binding}"/>
             <Button Grid.Column="4" Content="继续" Padding="2" Margin="4,0"
+                    ToolTip.Tip="只有暂停中的任务可以继续"
                     Command="{Binding DataContext.ResumeItemCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                     CommandParameter="{Binding}"/>
             <Button Grid.Column="5" Content="重试" Padding="2" Margin="4,0"
+                    ToolTip.Tip="只有失败 / 已取消的任务可以重试"
                     Command="{Binding DataContext.RetryItemCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                     CommandParameter="{Binding}"/>
           </Grid>

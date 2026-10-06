@@ -10,5 +10,11 @@ public partial class InstallView : UserControl
     {
         InitializeComponent();
         DataContext = new InstallViewModel();
+        // 版本清单延迟到页面显示时才拉（构造期拉会拖慢切页，且无网络时白等）
+        Loaded += async (_, _) =>
+        {
+            if (DataContext is InstallViewModel vm)
+                await vm.EnsureVersionsLoadedAsync();
+        };
     }
 }

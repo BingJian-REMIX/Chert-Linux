@@ -238,9 +238,10 @@ public partial class MainWindow : Window
             (MainTabKind.Download, "resourcepack") => new DownloadPageView(),
             (MainTabKind.Download, "modpack") => new DownloadPageView(),
             (MainTabKind.Download, "map") => new DownloadPageView(),
+            // 「安装」：手动安装指定版本（此前 InstallView 没有任何入口，是死代码）
+            (MainTabKind.Download, "install") => new InstallView(),
             (MainTabKind.Download, "shadertoken") => new ShaderTokenView(),
             (MainTabKind.Download, "versionlist") => new VersionListView(),
-            (MainTabKind.Download, "center") => new DownloadCenterView(),
             (MainTabKind.Toolbox, "log") => new LogView(),
             (MainTabKind.Toolbox, "clean") => new CleanerView(),
             (MainTabKind.Toolbox, "backup") => new BackupView(),

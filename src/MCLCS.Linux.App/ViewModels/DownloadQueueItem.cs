@@ -45,6 +45,15 @@ public class DownloadQueueItem : INotifyPropertyChanged
 
     public CancellationTokenSource? Cts { get; set; }
 
+    /// <summary>
+    /// 去重键：同一项目 + 同一目标目录 + 同一版本/加载器 + 同一文件直链视为同一项。
+    /// </summary>
+    public string DedupKey =>
+        $"{Kind}|{ProjectId}|{TargetDir}|{GameVersion ?? ""}|{Loader}|{InstallLoader}";
+
+    /// <summary>是否仍在处理中（去重用：已失败 / 已取消的项允许重新入队）。</summary>
+    public bool IsActive => _status is "排队中" or "下载中" or "已暂停" or "已完成";
+
     private string _status = "排队中";
     /// <summary>
     /// 失败原因。此前 catch 里只把状态写成「失败」，异常信息被丢掉，

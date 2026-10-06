@@ -145,8 +145,8 @@ public static class Sidebar
         new("resourcepack", "tab.resourcepack", "tex",      3),
         new("modpack",      "lbl.modpack",      "pack",     4),
         new("map",          "tab.map",          "map",      5),
-        new("shadertoken",  "tool.shadertoken", "token",    6),
-        new("center",       "tool.dlcenter",    "download", 7)
+        new("install",      "tab.install",      "pack",     6),
+        new("shadertoken",  "tool.shadertoken", "token",    7)
     };
 
     /// <summary>工具箱页副标签（规格 2.3，种子库已移除并并入存档管理器）。</summary>
