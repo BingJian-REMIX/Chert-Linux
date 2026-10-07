@@ -27,6 +27,8 @@ public static class Localization
         ["resourcepack"] = "tab.resourcepack.desc",
         ["modpack"] = "tab.modpack.desc",
         ["map"] = "tab.map.desc",
+        // 局域网联动（下载页副标签，清单 #35 ~ #40）
+        ["lanlink"] = "tab.lanlink.desc",
         ["center"] = "tool.dlcenter.desc",
         // 工具箱：Id 与 title 键一致（tool.{id}）
         ["log"] = "tool.log.desc",

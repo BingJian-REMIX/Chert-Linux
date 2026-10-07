@@ -146,7 +146,9 @@ public static class Sidebar
         new("modpack",      "lbl.modpack",      "pack",     4),
         new("map",          "tab.map",          "map",      5),
         new("install",      "tab.install",      "pack",     6),
-        new("shadertoken",  "tool.shadertoken", "token",    7)
+        new("shadertoken",  "tool.shadertoken", "token",    7),
+        // 局域网联动（清单 #35 ~ #40）：同 Wi-Fi 下两台启动器互相发现 / 邀请联机
+        new("lanlink",      "tab.lanlink",      "net",      8)
     };
 
     /// <summary>工具箱页副标签（规格 2.3，种子库已移除并并入存档管理器）。</summary>

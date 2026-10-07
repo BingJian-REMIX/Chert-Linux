@@ -1,0 +1,152 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="MCLCS.Linux.App.Views.Pages.LanLinkView">
+  <ScrollViewer Margin="18">
+    <StackPanel Spacing="14" MaxWidth="880" HorizontalAlignment="Left">
+
+      <!-- 标题栏：联动总开关（默认关闭，打开才会监听端口） -->
+      <StackPanel Orientation="Horizontal" Spacing="10">
+        <TextBlock Text="局域网联动" FontWeight="Bold" FontSize="18" VerticalAlignment="Center"
+                   Foreground="{DynamicResource PrimaryForeground}"/>
+        <CheckBox Content="允许局域网联动" IsChecked="{Binding Enabled, Mode=TwoWay}"
+                  VerticalAlignment="Center" Margin="12,0,0,0"
+                  ToolTip.Tip="开启后本机监听发现 / 指令端口，同一 Wi-Fi 下的另一台 MCLCS 就能找到你"/>
+      </StackPanel>
+
+      <!-- 服务状态 -->
+      <Border Classes="card">
+        <StackPanel Spacing="6">
+          <TextBlock Text="{Binding ServiceStatus}" FontWeight="Bold" FontSize="14"
+                     Foreground="{DynamicResource PrimaryForeground}"/>
+          <TextBlock FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource SecondaryForeground}"
+                     Text="开启后本机监听发现（UDP）与指令（TCP）端口；关闭开关即停止监听，并撤销已建立的会话。"/>
+        </StackPanel>
+      </Border>
+
+      <!-- 本机世界 -->
+      <TextBlock Text="我的世界" FontWeight="Bold" Foreground="{DynamicResource PrimaryForeground}"/>
+      <Border Classes="card">
+        <StackPanel Spacing="8">
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <Button Content="一键开放" Command="{Binding PublishCommand}" Classes="modal-btn primary"
+                    ToolTip.Tip="向游戏窗口投递 /publish（等价于游戏内的「对局域网开放」）"/>
+            <Button Content="读取本机端口" Command="{Binding DetectCommand}" Classes="modal-btn"
+                    ToolTip.Tip="从游戏日志读取已开放的局域网端口"/>
+            <Button Content="复制邀请" Command="{Binding CopyShareCommand}" Classes="modal-btn"/>
+          </StackPanel>
+
+          <TextBlock Text="{Binding LocalEndpoint}" FontSize="13"
+                     Foreground="{DynamicResource PrimaryForeground}"/>
+          <TextBlock Text="{Binding ShareText}" FontSize="11" TextWrapping="Wrap"
+                     Foreground="{DynamicResource SecondaryForeground}"/>
+
+          <!-- 邀请码：整段可复制（跨网段 / 隔着聊天软件时不必手抄 host:port） -->
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <Button Content="生成邀请码" Command="{Binding GenerateInviteCommand}" Classes="modal-btn"
+                    ToolTip.Tip="把世界地址 / 设备名 / 配对码打包成一段可复制的文本"/>
+            <Button Content="复制邀请码" Command="{Binding CopyInviteCommand}" Classes="modal-btn"
+                    ToolTip.Tip="整段复制（含 CHERT1: 前缀），聊天软件里发给对方"/>
+          </StackPanel>
+
+          <TextBox Text="{Binding InviteCode, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap"
+                   MaxHeight="72" FontSize="11" AcceptsReturn="True"
+                   ScrollViewer.VerticalScrollBarVisibility="Auto"
+                   Background="{DynamicResource InputBackground}"
+                   Foreground="{DynamicResource SecondaryForeground}"
+                   IsVisible="{Binding HasInvite}"/>
+          <TextBlock Text="{Binding InviteSummary}" FontSize="11" TextWrapping="Wrap"
+                     Foreground="{DynamicResource SecondaryForeground}"/>
+        </StackPanel>
+      </Border>
+
+      <!-- 设备列表 -->
+      <StackPanel Orientation="Horizontal" Spacing="10">
+        <TextBlock Text="局域网设备" FontWeight="Bold" VerticalAlignment="Center"
+                   Foreground="{DynamicResource PrimaryForeground}"/>
+        <Button Content="刷新" Command="{Binding RefreshCommand}" Classes="modal-btn" Padding="10,2"/>
+        <ProgressBar IsIndeterminate="True" Width="120" Height="6" IsVisible="{Binding Busy}"
+                     Foreground="{DynamicResource AccentBrush}"/>
+      </StackPanel>
+
+      <StackPanel Orientation="Horizontal" Spacing="8">
+        <TextBlock Text="对方 IP" VerticalAlignment="Center" Width="70"
+                   Foreground="{DynamicResource SecondaryForeground}"/>
+        <TextBox Text="{Binding ManualIp}" Width="160"
+                 ToolTip.Tip="广播被禁时可手动填对方局域网 IP 定向探测"/>
+        <Button Content="探测" Command="{Binding ProbeIpCommand}" Classes="modal-btn" Padding="10,2"/>
+      </StackPanel>
+
+      <Border Height="150" CornerRadius="10" Padding="4"
+              Background="{DynamicResource CardBackground}"
+              BorderBrush="{DynamicResource ControlBorder}" BorderThickness="1">
+        <ListBox ItemsSource="{Binding Peers}" SelectedItem="{Binding Selected, Mode=TwoWay}"
+                 Background="Transparent" BorderThickness="0">
+          <ListBox.ItemTemplate>
+            <DataTemplate>
+              <StackPanel Margin="4,2" Spacing="1">
+                <TextBlock Text="{Binding DisplayName}" FontWeight="Bold"
+                           Foreground="{DynamicResource PrimaryForeground}"/>
+                <TextBlock Text="{Binding StateText}" FontSize="11"
+                           Foreground="{DynamicResource SecondaryForeground}"/>
+                <TextBlock Text="{Binding PairText}" FontSize="11"
+                           Foreground="{DynamicResource AccentBrush}"/>
+              </StackPanel>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+      </Border>
+
+      <!-- 配对 -->
+      <TextBlock Text="配对" FontWeight="Bold" Foreground="{DynamicResource PrimaryForeground}"/>
+      <Border Classes="card">
+        <StackPanel Spacing="8">
+          <StackPanel Orientation="Horizontal" Spacing="10">
+            <Button Content="生成配对码" Command="{Binding GeneratePairCodeCommand}" Classes="modal-btn"/>
+            <TextBlock Text="{Binding PairCode}" VerticalAlignment="Center"
+                       FontSize="18" FontWeight="Bold" Foreground="{DynamicResource AccentBrush}"/>
+            <Button Content="复制配对码" Command="{Binding CopyPairCodeCommand}" Classes="modal-btn"
+                    Padding="10,2"/>
+          </StackPanel>
+
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <TextBlock Text="对方配对码" VerticalAlignment="Center" Width="70"
+                       Foreground="{DynamicResource SecondaryForeground}"/>
+            <TextBox Text="{Binding InputPairCode}" Width="110"/>
+            <Button Content="配对" Command="{Binding PairCommand}" Classes="modal-btn" Padding="10,2"/>
+          </StackPanel>
+
+          <TextBlock FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource SecondaryForeground}"
+                     Text="双方各生成一次配对码、互相输入即可建立会话；配对码 10 分钟有效。未配对的设备发来的指令一律拒绝。"/>
+        </StackPanel>
+      </Border>
+
+      <!-- 联动指令 -->
+      <TextBlock Text="联动" FontWeight="Bold" Foreground="{DynamicResource PrimaryForeground}"/>
+      <Border Classes="card">
+        <StackPanel Spacing="8">
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <Button Content="邀请加入我的世界" Command="{Binding InviteCommand}" Classes="modal-btn primary"
+                    ToolTip.Tip="把本机世界地址发给选中设备，对方屏幕上会弹确认框"/>
+            <Button Content="请对方开放世界" Command="{Binding RequestOpenCommand}" Classes="modal-btn"
+                    ToolTip.Tip="请求对方的 Minecraft 执行 /publish"/>
+          </StackPanel>
+
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <TextBlock Text="世界地址" VerticalAlignment="Center" Width="70"
+                       Foreground="{DynamicResource SecondaryForeground}"/>
+            <TextBox Text="{Binding JoinEndpoint}" Width="220"/>
+            <Button Content="加入" Command="{Binding JoinCommand}" Classes="modal-btn" Padding="10,2"/>
+          </StackPanel>
+
+          <TextBlock FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource SecondaryForeground}"
+                     Text="可直接粘贴 CHERT1: 邀请码，或形如 192.168.1.5:52931 的地址"/>
+        </StackPanel>
+      </Border>
+
+      <!-- 状态 -->
+      <TextBlock Text="{Binding StatusText}" TextWrapping="Wrap" Margin="0,4,0,0"
+                 Foreground="{DynamicResource StatusForeground}"/>
+
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

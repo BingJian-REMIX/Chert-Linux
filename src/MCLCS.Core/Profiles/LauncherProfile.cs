@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
 using MCLCS.Core.Ai;
 using MCLCS.Core.Hud;
+using MCLCS.Core.Lan;
 using MCLCS.Core.Launcher;
 using MCLCS.Core.Recommend;
 using MCLCS.Core.Resources;
@@ -230,6 +231,10 @@ public class LauncherProfile
     /// <summary>新建版本的默认隔离模式（通用设置「版本隔离」默认项，bug2.txt #9）。</summary>
     [JsonPropertyName("defaultVersionIsolation")]
     public IsolationMode DefaultVersionIsolation { get; set; } = IsolationMode.Auto;
+
+    /// <summary>清单 #35：局域网联动（默认关闭，需用户显式开启）。</summary>
+    [JsonPropertyName("lanLink")]
+    public LanLinkConfig LanLink { get; set; } = LanLinkConfig.CreateDefault();
 }
 
 /// <summary>缺失 Mod 前置依赖的自动安装策略。</summary>

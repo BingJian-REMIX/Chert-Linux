@@ -345,6 +345,8 @@ public partial class MainWindow : Window
             // 「安装」：手动安装指定版本（此前 InstallView 没有任何入口，是死代码）
             (MainTabKind.Download, "install") => new InstallView(),
             (MainTabKind.Download, "shadertoken") => new ShaderTokenView(),
+            // 局域网联动（清单 #35 ~ #40）：同 Wi-Fi 下两台启动器互相发现 / 邀请联机
+            (MainTabKind.Download, "lanlink") => new LanLinkView(),
             (MainTabKind.Download, "versionlist") => new VersionListView(),
             (MainTabKind.Toolbox, "log") => new LogView(),
             (MainTabKind.Toolbox, "clean") => new CleanerView(),
