@@ -27,6 +27,9 @@ public static class Localization
         ["resourcepack"] = "tab.resourcepack.desc",
         ["modpack"] = "tab.modpack.desc",
         ["map"] = "tab.map.desc",
+        // 下载页：安装版本 / 光影令牌（此前漏登记，界面会显示「待接入 Core 能力」占位文案）
+        ["install"] = "tab.install.desc",
+        ["shadertoken"] = "tool.shadertoken.desc",
         // 局域网联动（下载页副标签，清单 #35 ~ #40）
         ["lanlink"] = "tab.lanlink.desc",
         ["center"] = "tool.dlcenter.desc",
@@ -50,6 +53,9 @@ public static class Localization
         ["shortcut"] = "tool.shortcut.desc",
         ["afk"] = "tool.afk.desc",
         ["aichat"] = "tool.aichat.desc",
+        ["serverpack"] = "tool.serverpack.desc",
+        ["addserver"] = "tool.addserver.desc",
+        ["achievement"] = "tool.achievement.desc",
         // 新增入口
         ["devtools"] = "tool.devtools.desc",
         // 设置页

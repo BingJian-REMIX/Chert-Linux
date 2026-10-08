@@ -42,13 +42,15 @@ public class CoreBridgeTests
     public void Sidebar_Toolbox_HasItems_WithGroups()
     {
         var items = Sidebar.For(MainTabKind.Toolbox);
-        // 20 原工具 + devtools = 21；toolbox/achievement/annual 已移除
-        Assert.Equal(21, items.Count);
+        // 21 原工具 + addserver + achievement = 23（后两者都有真实页面与路由）；
+        // toolbox（聚合入口已拆）/ annual（仅周年日从主页跳转）不在侧边栏常驻
+        Assert.Equal(23, items.Count);
         Assert.Contains(items, i => i.Id == "log");
         Assert.Contains(items, i => i.Id == "aichat");
         Assert.Contains(items, i => i.Id == "devtools");
+        Assert.Contains(items, i => i.Id == "achievement");
+        Assert.Contains(items, i => i.Id == "addserver");
         Assert.DoesNotContain(items, i => i.Id == "toolbox");
-        Assert.DoesNotContain(items, i => i.Id == "achievement");
         Assert.DoesNotContain(items, i => i.Id == "annual");
         // 全部带分组（四组分区）
         Assert.All(items, i => Assert.NotNull(i.Group));

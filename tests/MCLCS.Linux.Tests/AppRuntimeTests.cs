@@ -179,6 +179,15 @@ public class AppRuntimeTests
     }
 
     [AvaloniaFact]
+    public void Localization_ToolDescription_覆盖_工具箱全部项()
+    {
+        // 工具箱 23 项（含 serverpack / addserver / achievement）都必须有真实描述，
+        // 否则侧边栏副标签的位置会显示「（待接入 Core 能力）」占位文案 —— 2026-10-09 修过一轮
+        foreach (var item in Sidebar.Toolbox)
+            Assert.NotEqual("（待接入 Core 能力）", Localization.ToolDescription(item.Id));
+    }
+
+    [AvaloniaFact]
     public void AfkViewModel_生成的_Token_包含_所有_动作()
     {
         var vm = new AfkViewModel();
