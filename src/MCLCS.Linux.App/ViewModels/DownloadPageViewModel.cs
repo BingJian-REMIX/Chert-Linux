@@ -727,11 +727,14 @@ public class DownloadPageViewModel : ObservableObject
 
     private void ChangeMapPage(string? dir)
     {
-        if (dir == "next" && _mapPage < _mapTotalPages) _mapPage++;
-        else if (dir == "prev" && _mapPage > 1) _mapPage--;
+        // ★ 必须走属性 setter 赋一个「与当前不同的值」：原先是先 ++ 字段、再 MapPage = _mapPage，
+        //   而 MapPage 的背后就是 _mapPage —— SetField 一比较发现没变，不会发通知，
+        //   于是界面上「第 N 页」（DownloadPageView 里绑了 MapPage）一直停在旧值，
+        //   看起来就是「点了下一页，结果翻了但页码不动」。
+        if (dir == "next" && _mapPage < _mapTotalPages) MapPage = _mapPage + 1;
+        else if (dir == "prev" && _mapPage > 1) MapPage = _mapPage - 1;
         else return;
 
-        MapPage = _mapPage;
         _ = SearchAsync(resetPage: false);
     }
 

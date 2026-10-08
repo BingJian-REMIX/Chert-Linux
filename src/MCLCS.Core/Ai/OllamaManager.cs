@@ -242,7 +242,9 @@ public static class OllamaManager
             var stdout = p.StandardOutput;
             var buf = new char[1];
             var sb = new StringBuilder();
-            while (!stdout.EndOfStream && !ct.IsCancellationRequested)
+            // 不要用 stdout.EndOfStream：它在异步方法里会触发一次同步读（CA2024），
+            // 既可能阻塞线程，也会和下面的 ReadAsync 抢数据。读到 0 字节就是流结束。
+            while (!ct.IsCancellationRequested)
             {
                 int read = await stdout.ReadAsync(buf, 0, 1);
                 if (read == 0) break;
