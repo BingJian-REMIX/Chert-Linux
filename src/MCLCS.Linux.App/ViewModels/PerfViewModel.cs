@@ -16,6 +16,10 @@ public class PerfViewModel : ObservableObject, IDisposable
     private readonly DispatcherTimer _timer;
     private readonly Process _self = Process.GetCurrentProcess();
 
+    /// <summary>Dispose 之后一律不再采样 —— Tick 委托是匿名 lambda，摘不掉，
+    /// 只能靠这道闸门保证「已经排队的那一次」不会去碰释放掉的 Process。</summary>
+    private bool _disposed;
+
     private double _cpu;
     public double Cpu { get => _cpu; set => SetField(ref _cpu, value); }
 
@@ -50,6 +54,7 @@ public class PerfViewModel : ObservableObject, IDisposable
 
     private void Toggle()
     {
+        if (_disposed) return;   // 页面已经切走：此时再开监控只会起一个没人能关掉的计时器
         if (_running)
         {
             _timer.Stop();
@@ -70,6 +75,7 @@ public class PerfViewModel : ObservableObject, IDisposable
 
     private void Sample()
     {
+        if (_disposed) return;
         var m = _provider.Sample(_self, 0);
         Cpu = m.CpuPercent;
         MemUsed = m.MemoryUsedMb;
@@ -80,6 +86,8 @@ public class PerfViewModel : ObservableObject, IDisposable
 
     public void Dispose()
     {
+        if (_disposed) return;
+        _disposed = true;
         _timer.Stop();
         try { _self.Dispose(); } catch { }
     }
