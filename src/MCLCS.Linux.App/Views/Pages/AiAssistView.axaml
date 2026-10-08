@@ -21,6 +21,8 @@
         <Button Classes="modal-btn" Content="Mod 翻译" Command="{Binding TranslateCommand}" IsEnabled="{Binding !IsBusy}"/>
         <Button Classes="modal-btn" Content="配装推荐" Command="{Binding RecommendCommand}" IsEnabled="{Binding !IsBusy}"/>
         <Button Classes="modal-btn" Content="年度总结" Command="{Binding SummaryCommand}" IsEnabled="{Binding !IsBusy}"/>
+        <!-- 清空会连模型记着的上下文一起清：聊久了历史一直累积，换个话题时该断就断 -->
+        <Button Classes="modal-btn" Content="清空对话" Command="{Binding ClearCommand}" IsEnabled="{Binding !IsBusy}"/>
       </StackPanel>
       <Grid ColumnDefinitions="*,Auto">
         <TextBox Grid.Column="0" Text="{Binding InputText}" AcceptsReturn="True" Margin="0,0,8,0"

@@ -133,7 +133,8 @@ public class AiSettingsViewModel : ObservableObject
         _mode = _ai.Mode;
         _endpoint = _ai.Endpoint;
         _model = _ai.Model;
-        _apiKey = _ai.ApiKey;
+        // 落盘的是混淆串（老配置可能是明文，RevealApiKey 会兼容），输入框要的是明文
+        _apiKey = Assistant.RevealApiKey(_ai);
         // 持久化存 Ollama tag，UI 用 DisplayName 展示（对齐 WPF）
         _selectedLocalModel = OllamaModels.ByTag(_ai.SelectedLocalModel)?.DisplayName ?? OllamaModels.Default.DisplayName;
         _lastCommittedModel = _selectedLocalModel;
@@ -299,10 +300,12 @@ public class AiSettingsViewModel : ObservableObject
             };
             var content = new StringContent(System.Text.Json.JsonSerializer.Serialize(body),
                 System.Text.Encoding.UTF8, "application/json");
+            using var req = new HttpRequestMessage(HttpMethod.Post, Endpoint);
+            req.Content = content;
             if (!string.IsNullOrWhiteSpace(ApiKey))
-                content.Headers.Add("Authorization", "Bearer " + ApiKey);
+                req.Headers.TryAddWithoutValidation("Authorization", "Bearer " + ApiKey);
 
-            using var resp = await client.PostAsync(Endpoint, content);
+            using var resp = await client.SendAsync(req);
             if (resp.IsSuccessStatusCode)
             {
                 var suggested = Assistant.SuggestModelForEndpoint(Endpoint);
@@ -339,7 +342,8 @@ public class AiSettingsViewModel : ObservableObject
             _ai.Mode = _mode;
             _ai.Endpoint = _endpoint;
             _ai.Model = _model;
-            _ai.ApiKey = _apiKey;
+            // Key 不进明文：内存留一份供本次会话直接用，落盘那一份混淆
+            Assistant.CommitApiKey(_apiKey, _ai);
             // UI 存 DisplayName，持久化存 Ollama tag（对齐 WPF）
             _ai.SelectedLocalModel = OllamaModels.ByDisplayName(_selectedLocalModel)?.OllamaTag ?? OllamaModels.Default.OllamaTag;
             _ai.CrashInterpret = _crashInterpret;
