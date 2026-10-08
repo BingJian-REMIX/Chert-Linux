@@ -532,15 +532,16 @@ public partial class MainWindow : Window
 
     /// <summary>
     /// 弹出「游戏已启动」提示。多开时额外报当前运行实例数，让用户知道已经开了几个。
-    /// 注：Linux 的 <c>InstanceTracker.ActiveCount()</c> 只统计本进程内登记的实例，
-    /// 不含「启动器重启前就在跑」的跨进程实例（跨进程扫描属 WPF 侧未同步项）。
+    /// 注：走 <c>ActiveCountIncludingExternal</c> —— 光看内存登记会漏掉「启动器重启前就在跑」
+    /// 的实例，那种情况下用户明明开着游戏，却被告知「当前运行 1 个实例」。
     /// </summary>
     private static void NotifyGameStarted(System.Diagnostics.Process proc)
     {
         var pid = -1;
         try { pid = proc.Id; } catch { /* 进程可能已退出 */ }
 
-        var running = MCLCS.Core.MultiInstance.InstanceTracker.ActiveCount();
+        var running = MCLCS.Core.MultiInstance.InstanceTracker
+            .ActiveCountIncludingExternal(MCLCS.Core.Utils.GameConstants.DefaultGameRoot);
 
         var text = running > 1
             ? $"游戏已启动（进程 {pid}）· 当前运行 {running} 个实例"

@@ -116,18 +116,31 @@ public static class LogManager
         return LogSeverity.Info;
     }
 
-    /// <summary>按关键字（不区分大小写、可空）与级别过滤；onlyErrors 时仅返回错误行。</summary>
-    public static List<LogLine> Filter(IEnumerable<LogLine> lines, string? keyword = null, bool onlyErrors = false)
+    /// <summary>
+    /// 按关键字（不区分大小写、可空）与级别过滤；onlyErrors 时仅返回错误行。
+    /// <paramref name="maxLines"/> &gt; 0 时只保留**最后** maxLines 条（日志最新内容通常在末尾），
+    /// 避免把几万行一次性绑给界面导致卡顿。
+    /// </summary>
+    public static List<LogLine> Filter(
+        IEnumerable<LogLine> lines, string? keyword = null, bool onlyErrors = false, int maxLines = 0)
+        => Filter(lines, keyword, onlyErrors, maxLines, out _);
+
+    /// <summary>带匹配总数的重载（供界面显示「匹配 N / 共 M 行」）。</summary>
+    public static List<LogLine> Filter(
+        IEnumerable<LogLine> lines, string? keyword, bool onlyErrors, int maxLines, out int totalMatches)
     {
         var kw = string.IsNullOrWhiteSpace(keyword) ? null : keyword!.ToLowerInvariant();
-        var result = new List<LogLine>();
+        var matched = new List<LogLine>();
         foreach (var l in lines)
         {
             if (onlyErrors && l.Severity != LogSeverity.Error) continue;
-            if (kw is not null && l.Text.ToLowerInvariant().Contains(kw)) result.Add(l);
-            else if (kw is null) result.Add(l);
+            if (kw is not null && l.Text.ToLowerInvariant().Contains(kw)) matched.Add(l);
+            else if (kw is null) matched.Add(l);
         }
-        return result;
+        totalMatches = matched.Count;
+        if (maxLines > 0 && matched.Count > maxLines)
+            return matched.GetRange(matched.Count - maxLines, maxLines);
+        return matched;
     }
 
     /// <summary>导出（复制）日志到目标路径，返回是否成功。</summary>

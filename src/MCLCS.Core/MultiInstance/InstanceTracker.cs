@@ -60,4 +60,28 @@ public static class InstanceTracker
     }
 
     public static int ActiveCount() => ListActive().Count;
+
+    /// <summary>
+    /// 返回存活实例：**内存登记 + 跨进程扫描**的合并结果。
+    /// <para>
+    /// 只靠 <see cref="ListActive"/> 会漏掉「启动器重启过、但游戏还在跑」的实例 ——
+    /// 静态字典随启动器进程一起没了，用户看到的就是「运行 0 个实例」。
+    /// 这里补上 <see cref="InstanceScanner"/> 的进程扫描，按 pid 去重（登记过的优先，版本 id 更准）。
+    /// </para>
+    /// </summary>
+    public static List<RunningInstance> ListActiveIncludingExternal(string? gameRoot)
+    {
+        var result = ListActive();
+        var seen = new HashSet<int>(result.Select(r => r.Pid));
+
+        foreach (var r in InstanceScanner.Scan(gameRoot))
+            if (seen.Add(r.Pid))
+                result.Add(r);
+
+        return result;
+    }
+
+    /// <summary>存活实例数（含跨进程扫描）。</summary>
+    public static int ActiveCountIncludingExternal(string? gameRoot)
+        => ListActiveIncludingExternal(gameRoot).Count;
 }

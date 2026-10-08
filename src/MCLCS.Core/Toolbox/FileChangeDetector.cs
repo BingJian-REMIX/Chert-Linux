@@ -83,6 +83,10 @@ public sealed class SnapshotDiff
 /// 文件变更检测（工具箱面板 5）：对目录拍快照并与后续状态比对。
 /// 典型用途：装完整合包 / 更新 Mod 后，确认哪些文件被改动。
 /// </summary>
+/// <remarks>
+/// 本类的每个方法都只接受「要查哪个目录」，本身不含版本概念 ——
+/// 调用方需先用 <see cref="WatchDirFor"/> 按版本隔离规则解析出正确目录再传入。
+/// </remarks>
 public static class FileChangeDetector
 {
     /// <summary>默认忽略的目录名。</summary>
@@ -96,10 +100,47 @@ public static class FileChangeDetector
     /// </summary>
     public static readonly string[] WatchTargets = { "mods", "resourcepacks", "shaderpacks" };
 
-    /// <summary>监视快照的持久化文件名（存于 gameRoot）。</summary>
+    /// <summary>
+    /// 监视快照的持久化文件名。
+    /// ★ 存在<b>被监视目录内</b>（共享 gameRoot 或隔离版 versions/&lt;id&gt;/），
+    ///   如此隔离版与共享版各持一份基线 —— 两者本就不该混在一起比。
+    /// </summary>
     public const string SnapshotFileName = "mclcs_watch_snapshot.json";
 
     public static string SnapshotPath(string gameRoot) => Path.Combine(gameRoot, SnapshotFileName);
+
+    /// <summary>
+    /// 解析某版本<b>实际应当被监视的目录</b>（版本隔离适配）。
+    /// <para>隔离 → <c>versions/&lt;id&gt;/</c>；未隔离或 id 为空 → <c>gameRoot</c>。
+    /// 委托 <see cref="Profiles.VersionIsolation.GameDirFor"/>，与启动时传给游戏的
+    /// <c>--gameDir</c> 保持一致 —— 否则隔离版的 mods / config 变动<b>根本不会被检测到</b>
+    /// （此前调用方一律传 gameRoot，等于只查了共享位置）。</para>
+    /// </summary>
+    public static string WatchDirFor(string gameRoot, string? versionId)
+        => Profiles.VersionIsolation.GameDirFor(gameRoot, versionId ?? "");
+
+    /// <summary>
+    /// 枚举所有应当被监视的目录：共享 gameRoot + 每个<b>已开启隔离</b>的版本目录。
+    /// <para>用于「启动器启动 / 焦点回到启动器」这类没有版本上下文的全局扫描 ——
+    /// 只扫 gameRoot 会漏掉隔离版里的 mods / resourcepacks / shaderpacks 变动。</para>
+    /// </summary>
+    public static List<string> AllWatchDirs(string gameRoot)
+    {
+        var dirs = new List<string> { gameRoot };
+        try
+        {
+            var versions = Utils.PathEx.VersionsDir(gameRoot);
+            if (!Directory.Exists(versions)) return dirs;
+            foreach (var d in Directory.EnumerateDirectories(versions))
+            {
+                var id = Path.GetFileName(d);
+                if (Profiles.VersionIsolation.IsIsolated(gameRoot, id))
+                    dirs.Add(d);
+            }
+        }
+        catch { /* 目录枚举失败就退回只扫共享目录 */ }
+        return dirs;
+    }
 
     /// <summary>
     /// 对 <see cref="WatchTargets"/> 三个目录一次性拍快照，

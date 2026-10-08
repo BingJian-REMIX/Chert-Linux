@@ -58,6 +58,21 @@ public static class LauncherUpdater
         return list;
     }
 
+    /// <summary>将 latest.json 的下载地址归一到 https 直链：仅当为 http(s) 绝对地址时才采用，否则（ssh://、git@、相对路径等非 https 形式）一律丢弃并改用 fallback 兜底的 CNB Release https 直链。落实「拉更新直接用 http(s) 直链」—永不依赖 ssh/git 协议拉取更新包。</summary>
+    private static string? ResolveHttps(string? url, string fallback)
+    {
+        if (string.IsNullOrWhiteSpace(url)) return fallback;
+        if (Uri.TryCreate(url, UriKind.Absolute, out var uri) && uri is not null
+            && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps))
+        {
+            // 一律归一到 https（http 也升 https）
+            var builder = new UriBuilder(uri) { Scheme = Uri.UriSchemeHttps, Port = -1 };
+            return builder.Uri.ToString();
+        }
+        // 非 http(s) 绝对地址：丢弃，回退 CNB Release https 直链
+        return fallback;
+    }
+
     /// <summary>归一化 latest.json 的 status 字段为内部取值：false / true / emgent（空或未知值返回空串，按 "true" 处理）。大小写不敏感，emgent/emergency 等价。</summary>
     private static string NormalizeStatus(string? raw)
     {
@@ -123,8 +138,8 @@ public static class LauncherUpdater
             if (result.Available)
             {
                 result.Changelog = info.Changelog;
-                result.DownloadUrl = info.DownloadUrl
-                    ?? $"{GameConstants.CnbReleaseBase}/-/releases/download/v{info.Version}/MCLCS-{info.Version}-Linux-x64.zip";
+                result.DownloadUrl = ResolveHttps(info.DownloadUrl,
+                    $"{GameConstants.CnbReleaseBase}/-/releases/download/v{info.Version}/MCLCS-{info.Version}-Linux-x64.zip");
                 result.SingleFileAvailable = info.SingleFileAvailable;
                 result.Mandatory = result.Mandatory || info.Mandatory;
             }

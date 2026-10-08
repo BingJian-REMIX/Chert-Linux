@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using MCLCS.Core.Localization;
@@ -37,8 +38,16 @@ public sealed class FileWatchService
             var gameRoot = GameConstants.DefaultGameRoot;
             if (!ProfileStore.Load(gameRoot).FileWatchEnabled) return;
 
-            var diff = await Task.Run(() => FileChangeDetector.DetectTwoStage(gameRoot));
-            var added = FileChangeDetector.NewFilesOnly(diff);
+            // ★ 不能只扫 gameRoot：隔离版的 mods / resourcepacks / shaderpacks 都在
+            //   versions/<id>/ 下，只查共享位置等于对隔离版视而不见（WPF 侧同样踩过）。
+            //   每个目录各持一份基线快照，互不干扰。
+            var added = await Task.Run(() =>
+            {
+                var all = new List<FileChange>();
+                foreach (var dir in FileChangeDetector.AllWatchDirs(gameRoot))
+                    all.AddRange(FileChangeDetector.NewFilesOnly(FileChangeDetector.DetectTwoStage(dir)));
+                return all;
+            });
             if (added.Count == 0) return;
 
             var preview = string.Join("、", added.Take(3).Select(c => c.Path));
