@@ -61,6 +61,10 @@ public class App : Application
             ThemeManager.Current = ThemeType.Dark;
         ApplyTheme(ThemeManager.Current);
         ThemeManager.OnThemeChanged += ApplyTheme;
+        // 清单 #18：跟随系统主题 —— 由 Avalonia 报告系统变体（桌面环境支持时生效），
+        // 系统侧切换亮 / 暗时同步 ThemeManager.Current，从而刷新调色板与图标。
+        var app = Application.Current!;
+        app.ActualThemeVariantChanged += (_, _) => SyncSystemTheme();
 
         // 高清图标偏好：profile.HighDpiIcons → IconManager（图标加载切 2x 目录，对齐 WPF）
         Converters.IconManager.HighDpi =
@@ -186,13 +190,46 @@ public class App : Application
     }
 
     /// <summary>把选定主题的调色板写入 Application.Resources，并切换 Fluent 主题变体。</summary>
-    private void ApplyTheme(ThemeType type)
+    private static void ApplyTheme(ThemeType type)
     {
         var dict = type == ThemeType.Light ? ThemePalettes.Light() : ThemePalettes.Dark();
         var app = Application.Current!;
         foreach (var key in dict.Keys)
             if (key is string s) app.Resources[s] = dict[key];
-        app.RequestedThemeVariant = type == ThemeType.Light ? ThemeVariant.Light : ThemeVariant.Dark;
+        app.RequestedThemeVariant = ThemeVariantFor(type);
+    }
+
+    /// <summary>
+    /// 清单 #18：跟随系统时把变体交给 Avalonia（ThemeVariant.Default），否则用显式亮 / 暗。
+    /// 桌面环境不提供系统主题时，Default 会回退到应用自带变体，行为与手动选择一致。
+    /// </summary>
+    private static ThemeVariant ThemeVariantFor(ThemeType type) =>
+        ThemeManager.FollowSystem
+            ? ThemeVariant.Default
+            : type == ThemeType.Light ? ThemeVariant.Light : ThemeVariant.Dark;
+
+    /// <summary>
+    /// 清单 #18：系统主题变化时同步 Core 的 ThemeManager（仅「跟随系统」开启时生效）。
+    /// 同步后调色板经 <see cref="ApplyTheme"/> 重刷，PngIcon 也靠 OnThemeChanged 重新挑图标。
+    /// </summary>
+    private static void SyncSystemTheme()
+    {
+        if (!ThemeManager.FollowSystem) return;
+        var app = Application.Current;
+        if (app is null) return;
+
+        var variant = app.ActualThemeVariant;
+        ThemeManager.Current = variant == ThemeVariant.Dark ? ThemeType.Dark : ThemeType.Light;
+        try { ThemeManager.SavePreference(AppConfig.DataRoot); } catch { }
+        ApplyTheme(ThemeManager.Current);
+    }
+
+    /// <summary>供设置页在「跟随系统主题」开关变化时调用：立即应用（开 = Default，关 = 显式主题）。</summary>
+    public static void ApplyFollowSystemTheme()
+    {
+        if (Application.Current is not { } app) return;
+        app.RequestedThemeVariant = ThemeVariantFor(ThemeManager.Current);
+        SyncSystemTheme();
     }
 
     /// <summary>启动时把 profile 持久化的外观设置真正应用到运行时（对齐 WPF App.ApplyAccentColor/FontScale/BackgroundImage）。</summary>

@@ -52,4 +52,13 @@ public class DownloadCardItem
 
     /// <summary>整合包卡片的次级元信息行（如 "Fabric · 1.20.1 · 12.3K 下载"），其它卡片为空。</summary>
     public string MetaText { get; init; } = "";
+
+    /// <summary>项目官网地址。CurseForge 卡片用它打开官网；Modrinth 卡片留空（页内 / 浏览器用 Id 拼）。</summary>
+    public string WebUrl { get; init; } = "";
+
+    /// <summary>
+    /// 是否可「加入队列」。CurseForge 的下载需按 modId + fileId 现解析直链且受作者分发授权限制，
+    /// 队列里走的是 Modrinth 解析，故 CF 卡片只提供跳转官网。
+    /// </summary>
+    public bool CanEnqueue => Source != "CurseForge" && Source != "Minecraft";
 }

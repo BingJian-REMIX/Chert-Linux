@@ -76,6 +76,23 @@ public class MainViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// 清单 #18：跟随操作系统主题（亮 / 暗）。开启后由系统变体驱动主题，手动选择被覆盖；
+    /// 关闭时保持当前主题。值变化即时生效并持久化。
+    /// </summary>
+    public bool FollowSystemTheme
+    {
+        get => ThemeManager.FollowSystem;
+        set
+        {
+            if (ThemeManager.FollowSystem == value) return;
+            ThemeManager.FollowSystem = value;
+            try { ThemeManager.SavePreference(AppConfig.DataRoot); } catch { }
+            App.ApplyFollowSystemTheme();
+            OnPropertyChanged();
+        }
+    }
+
     // ===== 外观（对齐 WPF 设置 → 外观：主题色 / 背景图 / 字体缩放，实时生效并持久化到 profile）=====
 
     private string _themeColor = "#3a7b4f";

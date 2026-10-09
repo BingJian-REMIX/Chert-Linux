@@ -1,0 +1,118 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:MCLCS.Linux.App.ViewModels"
+             x:Class="MCLCS.Linux.App.Views.Pages.SeasonalHubView"
+             x:DataType="vm:SeasonalHubViewModel">
+  <ScrollViewer Margin="18">
+    <StackPanel Spacing="14" MaxWidth="900" HorizontalAlignment="Left">
+
+      <Grid ColumnDefinitions="*,Auto">
+        <TextBlock Text="{Binding SeasonText}" FontSize="16" FontWeight="Bold" VerticalAlignment="Center"
+                   Foreground="{DynamicResource PrimaryForeground}"/>
+        <Button Grid.Column="1" Classes="modal-btn" Content="刷新" Padding="14,4"
+                Command="{Binding RefreshCommand}" IsEnabled="{Binding !IsBusy}"/>
+      </Grid>
+      <TextBlock Text="{Binding StatusMessage}" FontSize="12"
+                 Foreground="{DynamicResource SecondaryForeground}" TextWrapping="Wrap"/>
+      <!-- 清单 #34：愚人节期间露出的彩蛋小游戏入口 -->
+      <Button Classes="modal-btn accent" Content="玩个小游戏" HorizontalAlignment="Left" Padding="14,6"
+              IsVisible="{Binding EasterEggVisible}" Command="{Binding PlayEasterEggCommand}"/>
+
+      <!-- 限时活动 -->
+      <Border Padding="14" Background="{DynamicResource CardBackground}" CornerRadius="10">
+        <StackPanel Spacing="8">
+          <TextBlock Text="限时活动" FontWeight="SemiBold" FontSize="15"/>
+          <TextBlock Text="当前节日没有限时活动" FontSize="12" IsVisible="{Binding !HasEvents}"
+                     Foreground="{DynamicResource SecondaryForeground}"/>
+          <ItemsControl ItemsSource="{Binding Events}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <Border Margin="0,0,0,8" Padding="10" CornerRadius="8"
+                        Background="{DynamicResource ControlBackground}">
+                  <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel Spacing="2">
+                      <TextBlock Text="{Binding Title}" FontWeight="SemiBold" FontSize="14"/>
+                      <TextBlock Text="{Binding Note}" FontSize="12" TextWrapping="Wrap"
+                                 Foreground="{DynamicResource SecondaryForeground}"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center" Margin="12,0,0,0">
+                      <TextBlock Text="{Binding CountdownText}" FontSize="12"
+                                 Foreground="{DynamicResource AccentBrush}"/>
+                      <Button Classes="modal-btn" Content="打开" Padding="10,3"
+                              Command="{Binding DataContext.OpenUrlCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                              CommandParameter="{Binding Url}"/>
+                    </StackPanel>
+                  </Grid>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+      </Border>
+
+      <!-- 服务器推荐 -->
+      <Border Padding="14" Background="{DynamicResource CardBackground}" CornerRadius="10">
+        <StackPanel Spacing="8">
+          <TextBlock Text="节日服务器" FontWeight="SemiBold" FontSize="15"/>
+          <TextBlock Text="当前节日没有推荐的服务器" FontSize="12" IsVisible="{Binding !HasServers}"
+                     Foreground="{DynamicResource SecondaryForeground}"/>
+          <ItemsControl ItemsSource="{Binding Servers}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <Border Margin="0,0,0,8" Padding="10" CornerRadius="8"
+                        Background="{DynamicResource ControlBackground}">
+                  <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel Spacing="2">
+                      <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="14"/>
+                      <TextBlock Text="{Binding Note}" FontSize="12" TextWrapping="Wrap"
+                                 Foreground="{DynamicResource SecondaryForeground}"/>
+                      <TextBlock Text="{Binding Address}" FontSize="12"
+                                 Foreground="{DynamicResource CodeForeground}"/>
+                    </StackPanel>
+                    <Button Grid.Column="1" Classes="modal-btn" Content="复制地址" Padding="10,3"
+                            Margin="12,0,0,0" VerticalAlignment="Center"
+                            Click="CopyAddress_Click" Tag="{Binding Address}"/>
+                  </Grid>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+      </Border>
+
+      <!-- 内容推荐 -->
+      <Border Padding="14" Background="{DynamicResource CardBackground}" CornerRadius="10">
+        <StackPanel Spacing="8">
+          <TextBlock Text="内容推荐" FontWeight="SemiBold" FontSize="15"/>
+          <TextBlock Text="当前节日没有内容推荐" FontSize="12" IsVisible="{Binding !HasPicks}"
+                     Foreground="{DynamicResource SecondaryForeground}"/>
+          <ItemsControl ItemsSource="{Binding Picks}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <Border Margin="0,0,0,8" Padding="10" CornerRadius="8"
+                        Background="{DynamicResource ControlBackground}">
+                  <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel Spacing="2">
+                      <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBlock Text="{Binding Title}" FontWeight="SemiBold" FontSize="14"/>
+                        <TextBlock Text="{Binding KindText}" FontSize="11"
+                                   Foreground="{DynamicResource AccentBrush}" VerticalAlignment="Center"/>
+                      </StackPanel>
+                      <TextBlock Text="{Binding Note}" FontSize="12" TextWrapping="Wrap"
+                                 Foreground="{DynamicResource SecondaryForeground}"/>
+                    </StackPanel>
+                    <Button Grid.Column="1" Classes="modal-btn" Content="前往" Padding="10,3"
+                            Margin="12,0,0,0" VerticalAlignment="Center"
+                            Command="{Binding DataContext.OpenUrlCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                            CommandParameter="{Binding Url}"/>
+                  </Grid>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+      </Border>
+
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

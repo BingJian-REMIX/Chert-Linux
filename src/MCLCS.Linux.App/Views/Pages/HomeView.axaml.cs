@@ -14,6 +14,20 @@ public partial class HomeView : UserControl
         DataContext = new HomeViewModel();
     }
 
+    /// <summary>「查看全部」：跳到智能推荐结果页（RecommendationView，挂在游戏标签下）。</summary>
+    private void OpenRecommendation_Click(object? sender, RoutedEventArgs e)
+    {
+        if (this.FindAncestorOfType<MainWindow>() is { } win)
+            win.NavigateTo(MainTabKind.Game, "recommend");
+    }
+
+    /// <summary>「进入节日中心」：跳到节日中心页（SeasonalHubView，挂在游戏标签下）。</summary>
+    private void OpenSeasonalHub_Click(object? sender, RoutedEventArgs e)
+    {
+        if (this.FindAncestorOfType<MainWindow>() is { } win)
+            win.NavigateTo(MainTabKind.Game, "seasonal");
+    }
+
     private void OpenAnnualReport_Click(object? sender, RoutedEventArgs e)
     {
         if (this.FindAncestorOfType<MainWindow>() is { } win)

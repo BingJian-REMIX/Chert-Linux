@@ -1,0 +1,62 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:MCLCS.Linux.App.ViewModels"
+             xmlns:core="clr-namespace:MCLCS.Core.Recommend;assembly=MCLCS.Core"
+             x:Class="MCLCS.Linux.App.Views.Pages.RecommendationView"
+             x:DataType="vm:RecommendationViewModel">
+  <UserControl.DataContext>
+    <vm:RecommendationViewModel/>
+  </UserControl.DataContext>
+
+  <Grid RowDefinitions="Auto,*,Auto" Margin="12">
+    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8">
+      <TextBlock Text="智能推荐" FontSize="16" FontWeight="Bold" VerticalAlignment="Center"/>
+      <Button Content="刷新" Classes="modal-btn" Command="{Binding RefreshCommand}"
+              IsEnabled="{Binding !IsBusy}" Padding="14,4" Margin="12,0,0,0"/>
+      <TextBlock Text="{Binding StatusMessage}" VerticalAlignment="Center" Margin="12,0,0,0"
+                 Foreground="{DynamicResource SecondaryForeground}" TextWrapping="Wrap"/>
+    </StackPanel>
+
+    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+      <ItemsControl ItemsSource="{Binding Items}">
+        <ItemsControl.ItemsPanel>
+          <ItemsPanelTemplate>
+            <WrapPanel Orientation="Horizontal"/>
+          </ItemsPanelTemplate>
+        </ItemsControl.ItemsPanel>
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="core:RecommendationItem">
+            <Border Width="260" Margin="6" Padding="10" CornerRadius="8"
+                    Background="{DynamicResource CardBackground}"
+                    BorderBrush="{DynamicResource ControlBorder}" BorderThickness="1">
+              <StackPanel Spacing="4">
+                <TextBlock Text="{Binding CategoryLabel}" FontSize="11"
+                           Foreground="{DynamicResource AccentBrush}"/>
+                <TextBlock Text="{Binding Title}" FontWeight="SemiBold" FontSize="14" TextTrimming="CharacterEllipsis"
+                           ToolTip.Tip="{Binding Title}"/>
+                <TextBlock Text="{Binding Description}" FontSize="12" Height="48" TextWrapping="Wrap"
+                           TextTrimming="CharacterEllipsis" Foreground="{DynamicResource SecondaryForeground}"/>
+                <TextBlock Text="{Binding Reason}" FontSize="11" Height="32" TextWrapping="Wrap"
+                           TextTrimming="CharacterEllipsis" Foreground="{DynamicResource CodeForeground}"/>
+                <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,4,0,0">
+                  <Button Classes="modal-btn primary" Content="安装" Padding="10,3"
+                          Command="{Binding DataContext.InstallCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                          CommandParameter="{Binding}"/>
+                  <Button Classes="modal-btn" Content="详情" Padding="10,3"
+                          Command="{Binding DataContext.DetailsCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                          CommandParameter="{Binding}"/>
+                  <Button Classes="modal-btn" Content="不感兴趣" Padding="10,3"
+                          Command="{Binding DataContext.NotInterestedCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                          CommandParameter="{Binding}"/>
+                </StackPanel>
+              </StackPanel>
+            </Border>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </ScrollViewer>
+
+    <TextBlock Grid.Row="2" Text="推荐结果基于已安装内容与玩法偏好生成，标记「不感兴趣」仅在本页生效。"
+               FontSize="11" Margin="0,8,0,0" Foreground="{DynamicResource SecondaryForeground}"/>
+  </Grid>
+</UserControl>

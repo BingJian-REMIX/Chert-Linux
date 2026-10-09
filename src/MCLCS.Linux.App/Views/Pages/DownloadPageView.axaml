@@ -57,7 +57,7 @@
             <Button Classes="modal-btn primary"
                     Command="{Binding DataContext.EnqueueCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                     CommandParameter="{Binding}" Padding="6,2"
-                    IsVisible="{Binding Source, Converter={StaticResource SourceNotMinecraft}}">
+                    IsVisible="{Binding CanEnqueue}">
               <TextBlock Text="加入队列"/>
             </Button>
             <Button Classes="modal-btn"
@@ -93,6 +93,14 @@
                 IsVisible="{Binding ModrinthFilterVisible}">
       <ComboBox Width="140" ItemsSource="{Binding GameVersions}" SelectedItem="{Binding SelectedGameVersion}" ToolTip.Tip="游戏版本"/>
       <ComboBox Width="120" Margin="8,0,0,0" ItemsSource="{Binding Loaders}" SelectedItem="{Binding SelectedLoader}" ToolTip.Tip="加载器"/>
+      <!-- 搜索来源：切到 CurseForge 时按当前分类使用官方 classId 搜索（Key 在 设置 → 下载 配置） -->
+      <ComboBox Width="130" Margin="8,0,0,0" ItemsSource="{Binding SearchSources}" SelectedItem="{Binding SearchSource}"
+                ToolTip.Tip="搜索来源：CurseForge 将按当前分类使用官方 classId 搜索"/>
+      <Button Content="上一页" Command="{Binding ChangePageCommand}" CommandParameter="prev"
+              Margin="8,0,0,0" Padding="8,2" Classes="modal-btn" IsVisible="{Binding HasPaging}"/>
+      <Button Content="下一页" Command="{Binding ChangePageCommand}" CommandParameter="next"
+              Margin="4,0,0,0" Padding="8,2" Classes="modal-btn" IsVisible="{Binding HasPaging}"/>
+      <TextBlock Text="{Binding PageText}" VerticalAlignment="Center" Margin="8,0,0,0" IsVisible="{Binding HasPaging}"/>
     </StackPanel>
 
     <!-- 筛选行：整合包（版本 + 加载器 + 来源） -->

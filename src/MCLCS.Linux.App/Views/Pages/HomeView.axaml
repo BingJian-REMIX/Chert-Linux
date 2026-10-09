@@ -61,6 +61,18 @@
         </Grid>
       </StackPanel>
 
+      <!-- 节日中心入口：仅在远程 config.json 命中当前节日时展示 -->
+      <Border Padding="16" Background="{DynamicResource CardBackground}" CornerRadius="10"
+              IsVisible="{Binding HasSeason}">
+        <StackPanel Spacing="8">
+          <TextBlock Text="{Binding SeasonText}" FontWeight="SemiBold" FontSize="15"/>
+          <TextBlock Text="查看限时活动、节日服务器与内容推荐" FontSize="12"
+                     Foreground="{DynamicResource SecondaryForeground}"/>
+          <Button Classes="modal-btn accent" Content="进入节日中心" Click="OpenSeasonalHub_Click"
+                  HorizontalAlignment="Left" Padding="14,6"/>
+        </StackPanel>
+      </Border>
+
       <!-- 年度报告入口：仅在首次启动周年日展示 -->
       <Border Padding="16" Background="{DynamicResource CardBackground}" CornerRadius="10"
               IsVisible="{Binding IsAnnualReportVisible}">
@@ -77,7 +89,11 @@
 
       <!-- 智能推荐 -->
       <StackPanel Spacing="8">
-        <TextBlock Text="为你推荐" FontWeight="SemiBold" FontSize="15"/>
+        <Grid ColumnDefinitions="*,Auto">
+          <TextBlock Text="为你推荐" FontWeight="SemiBold" FontSize="15" VerticalAlignment="Center"/>
+          <Button Grid.Column="1" Classes="modal-btn" Content="查看全部" Padding="12,4"
+                  Click="OpenRecommendation_Click" HorizontalAlignment="Right"/>
+        </Grid>
         <TextBlock Text="{Binding RecommendStatus}" FontSize="12" Foreground="{DynamicResource SecondaryForeground}"/>
         <ItemsControl ItemsSource="{Binding Recommendations}">
           <ItemsControl.ItemTemplate>

@@ -4,7 +4,8 @@
         x:Class="MCLCS.Linux.App.Views.UpdateDialog"
         Title="发现新版本" Width="480" Height="440"
         WindowStartupLocation="CenterOwner" CanResize="False" ShowInTaskbar="False"
-        Background="Transparent">
+        Background="Transparent"
+             xmlns:ctl="clr-namespace:MCLCS.Linux.App.Views.Controls">
   <Grid>
     <!-- 半透明遮罩 -->
     <Rectangle Fill="#80000000"/>
@@ -52,8 +53,7 @@
 
         <!-- 更新日志（Markdown 文本，可滚动） -->
         <ScrollViewer Margin="0,14,0,0" VerticalScrollBarVisibility="Auto" MaxHeight="220">
-          <TextBlock x:Name="ChangelogBox" FontSize="13" TextWrapping="Wrap"
-                     Foreground="{DynamicResource PrimaryForeground}"/>
+          <ctl:MarkdownTextBlock x:Name="ChangelogBox" Markdown=""/>
         </ScrollViewer>
       </DockPanel>
     </Border>

@@ -44,7 +44,7 @@ public partial class UpdateDialog : Window
                                 ? "（紧急更新，请尽快安装）"
                                 : (result.Mandatory ? "（建议立即更新）" : ""));
 
-        ChangelogBox.Text = string.IsNullOrWhiteSpace(result.Changelog)
+        ChangelogBox.Markdown = string.IsNullOrWhiteSpace(result.Changelog)
             ? "（无法获取更新日志，请点击下方「下载更新」在发布页查看详情）"
             : result.Changelog;
     }

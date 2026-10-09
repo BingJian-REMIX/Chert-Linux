@@ -1,5 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ctl="clr-namespace:MCLCS.Linux.App.Views.Controls"
              xmlns:vm="clr-namespace:MCLCS.Linux.App.ViewModels"
              xmlns:conv="clr-namespace:MCLCS.Linux.App.Converters"
              x:Class="MCLCS.Linux.App.Views.Pages.AiAssistView"
@@ -72,8 +73,8 @@
                 </Border>
                 <Border Background="{DynamicResource ControlBackground}" CornerRadius="12,12,12,4"
                         Padding="10,8" BorderBrush="{DynamicResource ControlBorder}" BorderThickness="1">
-                  <TextBlock Text="{Binding Content}" Foreground="{DynamicResource PrimaryForeground}"
-                             TextWrapping="Wrap" FontSize="13"/>
+                  <ctl:MarkdownTextBlock Markdown="{Binding Content}" FontSize="13"
+                                          Foreground="{DynamicResource PrimaryForeground}"/>
                 </Border>
               </StackPanel>
 

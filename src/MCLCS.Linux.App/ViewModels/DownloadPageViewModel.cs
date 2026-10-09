@@ -29,6 +29,53 @@ public class DownloadPageViewModel : ObservableObject
     public static DownloadPageViewModel Instance { get; } = new();
 
     private string _currentSubTab = "mod";
+
+    // ===== 搜索来源（Modrinth / CurseForge），对齐 WPF P16 =====
+
+    /// <summary>可选搜索来源的显示名（与 <see cref="_searchSource"/> 的取值一致）。</summary>
+    public IReadOnlyList<string> SearchSources { get; } = new[] { "Modrinth", "CurseForge" };
+
+    private string _searchSource = "Modrinth";
+
+    /// <summary>当前搜索来源。切到 CurseForge 时按当前副页映射 classId 走官方 API。</summary>
+    public string SearchSource
+    {
+        get => _searchSource;
+        set
+        {
+            if (!SetField(ref _searchSource, value)) return;
+            OnPropertyChanged(nameof(IsCurseForgeSource));
+            _ = SearchAsync();
+        }
+    }
+
+    /// <summary>是否正在用 CurseForge 作为来源（驱动分页条显隐）。</summary>
+    public bool IsCurseForgeSource => _searchSource == "CurseForge";
+
+    // CurseForge 搜索分页（Modrinth 与地图各有自己的策略，这里独立一套避免互相干扰）
+    private int _page = 1;
+    private int _totalPages = 1;
+
+    /// <summary>CurseForge 结果当前页码（1 起）。</summary>
+    public int Page
+    {
+        get => _page;
+        set { if (SetField(ref _page, value)) OnPropertyChanged(nameof(PageText)); }
+    }
+
+    /// <summary>CurseForge 结果总页数（CF 不返回总命中数：本页填满即认为还有下一页）。</summary>
+    public int TotalPages
+    {
+        get => _totalPages;
+        set { if (SetField(ref _totalPages, value)) OnPropertyChanged(nameof(HasPaging)); }
+    }
+
+    /// <summary>是否显示 CurseForge 分页条。</summary>
+    public bool HasPaging => IsCurseForgeSource && _totalPages > 1;
+
+    /// <summary>分页条文案（第 N 页）。</summary>
+    public string PageText => $"第 {Page} 页";
+
     private bool _isMap;
     private string _query = "";
     private string _selectedGameVersion = "";
@@ -50,7 +97,108 @@ public class DownloadPageViewModel : ObservableObject
     private bool _isDetailOpen;
     private string _detailHint = "";
 
-    // 整合包在线浏览
+    /// <summary>按当前副页映射 CurseForge classId：Mods=6、Resource Packs=12、Worlds=17、Modpacks=4471、Shaders=6552。</summary>
+    private static int ClassIdForSubTab(string subTab) => subTab switch
+    {
+        "shader" => CurseForgeApi.ClassShaders,
+        "resourcepack" => CurseForgeApi.ClassResourcePacks,
+        "map" => CurseForgeApi.ClassWorlds,
+        "modpack" => CurseForgeApi.ClassModpacks,
+        _ => CurseForgeApi.ClassMods
+    };
+
+    private static string FallbackTokenForSubTab(string subTab) => subTab switch
+    {
+        "shader" => "shader",
+        "resourcepack" => "tex",
+        "map" => "map",
+        "modpack" => "pack",
+        _ => "mod"
+    };
+
+    /// <summary>大数友好文本：1234 → 1.2K，1234567 → 123.5万。</summary>
+    private static string FormatCount(long n) => n switch
+    {
+        < 1000 => n.ToString(),
+        < 10000 => (n / 1000.0).ToString("0.#") + "K",
+        < 100000000 => (n / 10000.0).ToString("0.#") + "万",
+        _ => (n / 100000000.0).ToString("0.##") + "亿"
+    };
+
+    /// <summary>宽松解析加载器为 CurseForge 枚举，无法识别时回退 Any。</summary>
+    private static CurseForgeLoaderType ParseCfLoader(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name) || name == "Any") return CurseForgeLoaderType.Any;
+        return Enum.TryParse<CurseForgeLoaderType>(name, ignoreCase: true, out var v)
+            ? v : CurseForgeLoaderType.Any;
+    }
+
+    private async Task SearchCurseForgeAsync()
+    {
+        const int pageSize = 24;
+        var classId = ClassIdForSubTab(CurrentSubTab);
+        var fallback = FallbackTokenForSubTab(CurrentSubTab);
+
+        // Key 缺失 / 已在设置里关闭 / 触发限流时给出可读原因，而不是默默返回空列表
+        var reason = LauncherService.Instance.CurseForge.UnavailableReason;
+        if (reason is not null)
+        {
+            Cards.Clear();
+            TotalPages = 1;
+            StatusMessage = "CurseForge 不可用：" + reason;
+            return;
+        }
+
+        var list = await LauncherService.Instance.CurseForge.SearchAsync(
+            string.IsNullOrWhiteSpace(Query) ? null : Query,
+            classId: classId,
+            gameVersion: string.IsNullOrEmpty(SelectedGameVersion) ? null : SelectedGameVersion,
+            loader: SelectedLoader == "Any" ? CurseForgeLoaderType.Any : ParseCfLoader(SelectedLoader),
+            limit: pageSize,
+            offset: (Page - 1) * pageSize);
+
+        // CF 搜索不返回总命中数：本页填满即认为还有下一页（与整合包源同一策略）
+        TotalPages = list.Count >= pageSize ? Page + 1 : Math.Max(1, Page);
+
+        foreach (var it in list)
+        {
+            var meta = new List<string>();
+            if (it.DownloadCount > 0) meta.Add(FormatCount(it.DownloadCount) + " 次下载");
+            var gv = it.LatestFilesIndexes.Select(f => f.GameVersion).FirstOrDefault();
+            if (!string.IsNullOrEmpty(gv)) meta.Add("MC " + gv);
+
+            var authors = it.Authors.Count > 0
+                ? string.Join(", ", it.Authors.Select(a => a.Name))
+                : "CurseForge";
+
+            Cards.Add(new DownloadCardItem
+            {
+                Id = it.Id.ToString(),
+                Title = string.IsNullOrEmpty(it.Name) ? it.Id.ToString() : it.Name,
+                Author = authors,
+                Summary = it.Summary,
+                IconUrl = it.Logo?.ThumbnailUrl,
+                FallbackToken = fallback,
+                Source = "CurseForge",
+                SubTab = CurrentSubTab,
+                Slug = it.Slug,
+                // 下载需按 modId + fileId 现解析且受作者分发授权限制，CF 卡片只跳官网
+                WebUrl = CurseForgeApi.WebPageUrl(classId, it.Slug, it.Id),
+                MetaText = string.Join(" · ", meta)
+            });
+        }
+    }
+
+    /// <summary>CurseForge 结果翻页：next / prev，越界则无操作。</summary>
+    private void ChangePage(string? dir)
+    {
+        if (dir == "next" && Page < TotalPages) Page++;
+        else if (dir == "prev" && Page > 1) Page--;
+        else return;
+        _ = SearchAsync(resetPage: false);
+    }
+
+    // ---- 整合包在线浏览（规格 2.2 → 整合包）----
     private bool _isModpack;
     private ObservableCollection<ModpackSourceEntry> _modpackSources = new();
     private string _selectedModpackSource = "modrinth";
@@ -380,6 +528,7 @@ public class DownloadPageViewModel : ObservableObject
     /// <summary>重试：失败 / 已取消的项再来一次（配合断点续传，不会从头开始）。</summary>
     public ICommand RetryItemCommand { get; }
     public ICommand OpenDetailCommand { get; }
+    public ICommand ChangePageCommand { get; }
     public ICommand ChangeMapPageCommand { get; }
     public ICommand SetModpackSourceCommand { get; }
     public ICommand OpenModpackDetailCommand { get; }
@@ -404,6 +553,7 @@ public class DownloadPageViewModel : ObservableObject
         ResumeItemCommand = new RelayCommand(p => ResumeItem(p as DownloadQueueItem));
         RetryItemCommand = new RelayCommand(p => RetryItem(p as DownloadQueueItem));
         OpenDetailCommand = new RelayCommand(p => OpenDetail(p as DownloadCardItem));
+        ChangePageCommand = new RelayCommand(p => ChangePage(p as string));
         ChangeMapPageCommand = new RelayCommand(p => ChangeMapPage(p as string));
         SetModpackSourceCommand = new RelayCommand(p => SetModpackSource(p as string));
         OpenModpackDetailCommand = new RelayCommand(p => _ = OpenModpackDetailAsync(p as DownloadCardItem));
@@ -525,12 +675,16 @@ public class DownloadPageViewModel : ObservableObject
             if (IsMinecraft) await LoadVersionsAsync();
             else if (IsMap) await SearchMapsAsync(resetPage);
             else if (IsModpack) await SearchModpackAsync();
+            // 来源切到 CurseForge 时按副页映射 classId 走官方 API，否则沿用 Modrinth
+            else if (IsCurseForgeSource) await SearchCurseForgeAsync();
             else await SearchModrinthAsync();
 
             StatusMessage = Cards.Count > 0
                 ? IsMap && MapTotalPages > 1
                     ? $"找到 {Cards.Count} 个结果（第 {MapPage} / {MapTotalPages} 页）"
-                    : $"找到 {Cards.Count} 个结果"
+                    : HasPaging
+                        ? $"找到 {Cards.Count} 个结果（第 {Page} / {TotalPages} 页）"
+                        : $"找到 {Cards.Count} 个结果"
                 : "未找到结果";
         }
         catch (Exception ex)
@@ -987,6 +1141,15 @@ public class DownloadPageViewModel : ObservableObject
         if (card.Source == "PixelMap")
         {
             _ = LoadMapDetailAsync(card);
+        }
+        else if (card.Source == "CurseForge")
+        {
+            // 详情面板是 Modrinth 专用，CF 结果直接开官网项目页
+            if (!string.IsNullOrWhiteSpace(card.WebUrl))
+            {
+                try { OpenUrl(card.WebUrl); }
+                catch { StatusMessage = "无法打开外部浏览器"; }
+            }
         }
         else if (!string.IsNullOrEmpty(card.Id))
         {

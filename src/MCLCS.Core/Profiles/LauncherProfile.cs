@@ -88,6 +88,26 @@ public class LauncherProfile
     [JsonPropertyName("autoStartLauncher")]
     public bool AutoStartLauncher { get; set; }
 
+    /// <summary>窗口布局记忆：上次退出时窗口左上角 X（像素）；从未记录时为 null。</summary>
+    [JsonPropertyName("windowLeft")]
+    public double? WindowLeft { get; set; }
+
+    /// <summary>窗口布局记忆：上次退出时窗口左上角 Y（像素）；从未记录时为 null。</summary>
+    [JsonPropertyName("windowTop")]
+    public double? WindowTop { get; set; }
+
+    /// <summary>窗口布局记忆：上次退出时窗口宽度（像素）。</summary>
+    [JsonPropertyName("windowWidth")]
+    public double? WindowWidth { get; set; }
+
+    /// <summary>窗口布局记忆：上次退出时窗口高度（像素）。</summary>
+    [JsonPropertyName("windowHeight")]
+    public double? WindowHeight { get; set; }
+
+    /// <summary>窗口布局记忆：上次退出时是否处于最大化。</summary>
+    [JsonPropertyName("windowMaximized")]
+    public bool WindowMaximized { get; set; }
+
     [JsonPropertyName("minimizeToTray")]
     public bool MinimizeToTray { get; set; }
 

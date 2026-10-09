@@ -10,7 +10,9 @@ using Avalonia.Interactivity;
 using Avalonia.Threading;
 using MCLCS.Core.Launcher;
 using MCLCS.Core.Localization;
+using MCLCS.Core.Profiles;
 using MCLCS.Core.UI;
+using MCLCS.Core.Utils;
 using MCLCS.Linux.App.Converters;
 using MCLCS.Linux.App.Services;
 using MCLCS.Linux.App.ViewModels;
@@ -48,6 +50,8 @@ public partial class MainWindow : Window
         catch { /* 图标缺失不致命 */ }
         // 语言切换时重绑侧栏（走 KeyToTextConverter 的项需重绑才能刷新）
         LocaleManager.LocaleChanged += OnLocaleChanged;
+        // 窗口布局记忆：先还原上次退出时的位置 / 尺寸，再由 FitToScreen 校正到当前屏幕内
+        RestoreWindowBounds();
         // 上屏且屏幕信息就绪后再铺满（构造函数里 Screens.Primary 尚未可用）
         Opened += (_, _) => FitToScreen();
         // 窗口就绪后应用外观偏好（主题色/字体缩放/背景图）——启动时 MainWindow 尚未创建，此处补全
@@ -68,6 +72,8 @@ public partial class MainWindow : Window
             if (!TrayIconService.HandleWindowClosing()) return;
             e.Cancel = true;
         };
+        // 真正退出时记录窗口布局（最小化到托盘只是隐藏，不会走到这里）
+        Closed += (_, _) => SaveWindowBounds();
         // 初始页面路由（默认主页为游戏页，无侧栏）
         ShowPage();
 
@@ -160,6 +166,59 @@ public partial class MainWindow : Window
         _vm.SelectedSidebarId = sidebarId;
         SyncSidebarSelection();
         ShowPage();
+    }
+
+    // ================= 窗口布局记忆（对齐 WPF MainWindow：上次退出时的位置 / 尺寸 / 最大化）=================
+
+    /// <summary>
+    /// 还原上次退出时记录的窗口几何。任何一项缺失 / 越界都退回默认（由 FitToScreen 兜底铺满）。
+    /// </summary>
+    private void RestoreWindowBounds()
+    {
+        try
+        {
+            var profile = ProfileStore.Load(GameConstants.DefaultGameRoot);
+            if (profile.WindowWidth is > 0 && profile.WindowHeight is > 0)
+            {
+                Width = profile.WindowWidth.Value;
+                Height = profile.WindowHeight.Value;
+            }
+            if (profile.WindowLeft is { } left && profile.WindowTop is { } top)
+            {
+                Position = new PixelPoint((int)left, (int)top);
+            }
+            if (profile.WindowMaximized)
+                WindowState = WindowState.Maximized;
+        }
+        catch
+        {
+            // 配置不可读时保持默认尺寸，不影响启动
+        }
+    }
+
+    /// <summary>退出时把当前窗口几何写回 profile（最大化状态不记坐标，避免还原到 0,0）。</summary>
+    private void SaveWindowBounds()
+    {
+        try
+        {
+            var profile = ProfileStore.Load(GameConstants.DefaultGameRoot);
+            if (string.IsNullOrWhiteSpace(profile.GameRoot))
+                profile.GameRoot = GameConstants.DefaultGameRoot;
+
+            profile.WindowMaximized = WindowState == WindowState.Maximized;
+            if (!profile.WindowMaximized)
+            {
+                profile.WindowLeft = Position.X;
+                profile.WindowTop = Position.Y;
+                profile.WindowWidth = (double)Width;
+                profile.WindowHeight = (double)Height;
+            }
+            ProfileStore.Save(profile);
+        }
+        catch
+        {
+            // 布局记忆属非关键功能，写失败不影响退出
+        }
     }
 
     /// <summary>切页展开动画：新内容<b>从右滚入</b>（对齐 WPF d9fdfe3「设置分类切换改为从右淡入/向左淡出，并应用到全局」）。
@@ -342,6 +401,9 @@ public partial class MainWindow : Window
         UserControl page = (_vm.SelectedTab.Kind, _vm.SelectedSidebarId) switch
         {
             // 游戏页无侧边栏，默认展示主页（HomeView）
+            (MainTabKind.Game, "recommend") => new RecommendationView(),
+            // 节日中心：远程 config.json 驱动的限时活动 / 服务器 / 内容推荐
+            (MainTabKind.Game, "seasonal") => new SeasonalHubView(),
             (MainTabKind.Game, _) => new HomeView(),
             // 下载中心：六个副标签统一路由到单一 DownloadPageView（对齐 WPF 的单页 + 子标签切换）
             (MainTabKind.Download, "minecraft") => new DownloadPageView(),

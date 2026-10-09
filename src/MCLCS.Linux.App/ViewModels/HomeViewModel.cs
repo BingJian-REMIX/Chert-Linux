@@ -133,6 +133,7 @@ public class HomeViewModel : ObservableObject
         RefreshVersions();
         LoadPlayStats();
         _ = RefreshRecommendAsync();
+        _ = LoadSeasonAsync();
     }
 
     /// <summary>枚举 versions/ 下含 &lt;id&gt;/&lt;id&gt;.json 的目录。</summary>
@@ -201,6 +202,36 @@ public class HomeViewModel : ObservableObject
         catch (Exception ex)
         {
             RecommendStatus = $"推荐失败：{ex.Message}";
+        }
+    }
+
+    /// <summary>节日中心入口：仅在有生效节日时露出（远程 config.json 决定）。</summary>
+    private bool _hasSeason;
+    public bool HasSeason
+    {
+        get => _hasSeason;
+        set => SetField(ref _hasSeason, value);
+    }
+
+    private string _seasonText = "";
+    public string SeasonText
+    {
+        get => _seasonText;
+        set => SetField(ref _seasonText, value);
+    }
+
+    private async Task LoadSeasonAsync()
+    {
+        try
+        {
+            await Themes.SeasonalService.RefreshAsync();
+            var key = Themes.SeasonalService.CurrentSeasonKey;
+            HasSeason = !string.IsNullOrWhiteSpace(key);
+            SeasonText = HasSeason ? $"节日进行中：{key}" : "";
+        }
+        catch
+        {
+            HasSeason = false;
         }
     }
 

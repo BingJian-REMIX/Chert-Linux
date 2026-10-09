@@ -17,6 +17,10 @@
           <ComboBoxItem Content="{Binding ThemeLightLabel}" Tag="Light"/>
         </ComboBox>
 
+        <ToggleSwitch IsChecked="{Binding FollowSystemTheme}" Margin="0,6,0,0"
+                      Content="跟随系统主题"
+                      ToolTip.Tip="开启后由桌面环境的亮 / 暗设置决定主题；关闭则使用上面手动选择的主题"/>
+
         <Separator Margin="0,4"/>
 
         <TextBlock Text="主题色" FontWeight="Bold" Margin="0,8,0,0"
