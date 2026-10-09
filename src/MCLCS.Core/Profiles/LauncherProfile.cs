@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
 using MCLCS.Core.Ai;
 using MCLCS.Core.Hud;
+using MCLCS.Core.Input;
 using MCLCS.Core.Lan;
 using MCLCS.Core.Launcher;
 using MCLCS.Core.Recommend;
@@ -93,6 +94,14 @@ public class LauncherProfile
     [JsonPropertyName("animationsEnabled")]
     public bool AnimationsEnabled { get; set; } = true;
 
+    /// <summary>Toast 通知停留时长（秒）。0 表示不自动消失、需手动关闭；默认 5 秒。设置 → 通用。</summary>
+    [JsonPropertyName("toastDurationSeconds")]
+    public int ToastDurationSeconds { get; set; } = 5;
+
+    /// <summary>是否启用节日特效（关闭后立即恢复默认外观）。</summary>
+    [JsonPropertyName("seasonalEffectsEnabled")]
+    public bool SeasonalEffectsEnabled { get; set; } = true;
+
     /// <summary>文件变更检测（规格 2.3-16 / 3.13）：启动或焦点回归时检测手动丢入 mods/resourcepacks/shaderpacks 的新文件。</summary>
     [JsonPropertyName("fileWatchEnabled")]
     public bool FileWatchEnabled { get; set; } = true;
@@ -105,10 +114,34 @@ public class LauncherProfile
     [JsonPropertyName("maxConcurrentDownloads")]
     public int MaxConcurrentDownloads { get; set; } = 8;
 
+    /// <summary>清单 #67：全局下载限速（KB/s），0 表示不限速。</summary>
+    [JsonPropertyName("downloadSpeedLimitKbps")]
+    public int DownloadSpeedLimitKbps { get; set; }
+
+    /// <summary>清单 #67：单任务失败自动重试次数（0 = 不重试）。</summary>
+    [JsonPropertyName("downloadAutoRetryCount")]
+    public int DownloadAutoRetryCount { get; set; } = 2;
+
+    /// <summary>清单 #63：是否启用全局快捷键（仅 X11 会话可用，Wayland 下无效）。</summary>
+    [JsonPropertyName("globalHotkeysEnabled")]
+    public bool GlobalHotkeysEnabled { get; set; } = true;
+
+    /// <summary>CurseForge 接入配置（用户 Key 覆盖 / API Root / 开关）。内置 Key 走构建时注入。</summary>
+    [JsonPropertyName("curseForge")]
+    public CurseForgeSettings CurseForge { get; set; } = new();
+
     // ---- 外观（设置 → 外观）----
 
     [JsonPropertyName("themeColor")]
     public string ThemeColor { get; set; } = "#3a7b4f";
+
+    /// <summary>清单 #17：外观页——窗口背景色（覆盖主题的 WindowBackground）。空 = 跟随主题。</summary>
+    [JsonPropertyName("windowBackgroundColor")]
+    public string? WindowBackgroundColor { get; set; }
+
+    /// <summary>清单 #17：外观页——隐藏侧边栏图标标签（展开时也只显示图标）。</summary>
+    [JsonPropertyName("hideSidebarLabels")]
+    public bool HideSidebarLabels { get; set; }
 
     [JsonPropertyName("backgroundImagePath")]
     public string? BackgroundImagePath { get; set; }
@@ -153,6 +186,10 @@ public class LauncherProfile
     /// <summary>游戏内 HUD 悬浮窗（默认关闭）。</summary>
     [JsonPropertyName("hud")]
     public HudConfig Hud { get; set; } = new();
+
+    /// <summary>清单 #11：触屏模式虚拟按键面板（默认关闭）。</summary>
+    [JsonPropertyName("touch")]
+    public TouchControlConfig Touch { get; set; } = TouchControlConfig.CreateDefault();
 
     /// <summary>启动预热。</summary>
     [JsonPropertyName("prewarm")]

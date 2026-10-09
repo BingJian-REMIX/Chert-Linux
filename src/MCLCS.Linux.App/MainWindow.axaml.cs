@@ -60,6 +60,14 @@ public partial class MainWindow : Window
         Activated += (_, _) => _ = FileWatchService.Instance.RunScanAsync();
         // 启动后异步检查启动器更新（有可用版本时弹出 UpdateDialog；失败静默不阻塞）
         Opened += (_, _) => _ = UpdateDialog.CheckAndShowAsync(this);
+        // 系统托盘：开启「关闭时最小化到托盘」后关窗只隐藏窗口，进程继续在托盘运行。
+        // 桌面环境不提供托盘时 Initialize 会静默失败，Closing 里也就自动退回「直接退出」。
+        Opened += (_, _) => TrayIconService.Initialize(this);
+        Closing += (_, e) =>
+        {
+            if (!TrayIconService.HandleWindowClosing()) return;
+            e.Cancel = true;
+        };
         // 初始页面路由（默认主页为游戏页，无侧栏）
         ShowPage();
 

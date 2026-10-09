@@ -68,6 +68,39 @@
         </Border>
       </StackPanel>
 
+      <!-- 聊天记录提取（从最新日志里剥离出聊天行，便于存档 / 复盘） -->
+      <StackPanel Spacing="10">
+        <TextBlock Text="聊天记录提取" FontWeight="Bold" FontSize="14" Foreground="{DynamicResource PrimaryForeground}"/>
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <Button Content="提取聊天记录" Command="{Binding ExtractChatCommand}"/>
+          <Button Content="导出 txt" Command="{Binding ExportChatCommand}" CommandParameter="txt"
+                  IsEnabled="{Binding HasChat}"/>
+          <Button Content="导出 md" Command="{Binding ExportChatCommand}" CommandParameter="md"
+                  IsEnabled="{Binding HasChat}"/>
+        </StackPanel>
+        <TextBlock Text="{Binding ChatStatus}" FontSize="12" Foreground="{DynamicResource SecondaryForeground}"
+                   TextWrapping="Wrap"/>
+        <Border Background="{DynamicResource InputBackground}" CornerRadius="8" Padding="8" MaxHeight="220"
+                IsVisible="{Binding HasChat}">
+          <ScrollViewer>
+            <ItemsControl ItemsSource="{Binding ChatEntries}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                  <TextBlock Margin="0,2" TextWrapping="Wrap" FontSize="12"
+                             Foreground="{DynamicResource SecondaryForeground}">
+                    <Run Text="{Binding Time}" FontFamily="Consolas,Monospace"/>
+                    <Run Text=" "/>
+                    <Run Text="{Binding Player}" FontWeight="SemiBold"/>
+                    <Run Text="："/>
+                    <Run Text="{Binding Message}"/>
+                  </TextBlock>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+        </Border>
+      </StackPanel>
+
       <!-- 自动修复方案面板 -->
       <Border Background="{DynamicResource CardBackground}" CornerRadius="10" Padding="16"
               IsVisible="{Binding CanRepair, Converter={StaticResource BoolToVis}}">

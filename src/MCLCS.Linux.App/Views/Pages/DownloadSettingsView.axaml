@@ -12,7 +12,7 @@
 
       <StackPanel Spacing="10">
         <TextBlock Text="下载选项" FontWeight="Bold" FontSize="14"/>
-        <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto">
+        <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto,Auto">
           <TextBlock Grid.Row="0" Grid.Column="0" Text="下载源优先级" VerticalAlignment="Center"/>
           <ComboBox Grid.Row="0" Grid.Column="1" MinWidth="180"
                     ItemsSource="{Binding SourceOptions}"
@@ -24,8 +24,35 @@
 
           <TextBlock Grid.Row="2" Grid.Column="0" Text="服务器资源包缓存" VerticalAlignment="Center" Margin="0,8,0,0"/>
           <ToggleSwitch Grid.Row="2" Grid.Column="1" IsChecked="{Binding ServerPackCacheEnabled}" Margin="0,8,0,0"/>
+
+          <TextBlock Grid.Row="3" Grid.Column="0" Text="全局限速（KB/s，0 = 不限速）" VerticalAlignment="Center" Margin="0,8,0,0"/>
+          <NumericUpDown Grid.Row="3" Grid.Column="1" MinWidth="120" Minimum="0" Maximum="1048576"
+                         Value="{Binding DownloadSpeedLimitKbps}" Margin="0,8,0,0"/>
         </Grid>
         <Button Classes="modal-btn accent" Content="保存下载设置" Command="{Binding SaveCommand}" HorizontalAlignment="Left"/>
+      </StackPanel>
+
+      <StackPanel Spacing="10">
+        <TextBlock Text="CurseForge 接入" FontWeight="Bold" FontSize="14"/>
+        <TextBlock Text="Key 优先级：启动参数 &gt; 下方自定义 &gt; 构建时注入的内置 Key。留空即使用内置 Key。"
+                   FontSize="12" Opacity="0.7" TextWrapping="Wrap"/>
+        <Grid ColumnDefinitions="Auto,Auto,*">
+          <ToggleSwitch Grid.Column="0" IsChecked="{Binding CurseForgeEnabled}"/>
+          <TextBlock Grid.Column="1" Text="启用 CurseForge 源" VerticalAlignment="Center" Margin="6,0,0,0"/>
+          <TextBlock Grid.Column="2" Text="{Binding CurseForgeStatusText}" VerticalAlignment="Center"
+                     Margin="12,0,0,0" FontSize="12" Opacity="0.8"/>
+        </Grid>
+        <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,Auto">
+          <TextBlock Grid.Row="0" Grid.Column="0" Text="API Key" VerticalAlignment="Center" Width="90"/>
+          <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding CurseForgeApiKey}" Watermark="留空 = 使用内置 Key"
+                   PasswordChar="•" Margin="0,0,8,0"/>
+          <Button Grid.Row="0" Grid.Column="2" Classes="modal-btn" Content="测试连接"
+                  Command="{Binding TestCurseForgeCommand}" IsEnabled="{Binding !Busy}"/>
+
+          <TextBlock Grid.Row="1" Grid.Column="0" Text="API Root" VerticalAlignment="Center" Width="90" Margin="0,8,0,0"/>
+          <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding CurseForgeApiRoot}" Margin="0,8,8,0"
+                   Watermark="留空 = https://api.curseforge.com"/>
+        </Grid>
       </StackPanel>
 
       <StackPanel Spacing="8">

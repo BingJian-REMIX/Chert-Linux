@@ -38,8 +38,9 @@ public partial class ToastCard : UserControl
         }, DispatcherPriority.Render);
 
         // 自动消失（淡出后移除）
-        if (m.Options.DurationMs > 0)
-            _ = DismissAfter(m.Options.DurationMs);
+        var ms = m.Options.DurationMs ?? ToastService.Instance.DefaultDurationMs;
+        if (ms > 0)
+            _ = DismissAfter(ms);
     }
 
     private async Task DismissAfter(int ms)

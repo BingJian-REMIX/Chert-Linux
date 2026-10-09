@@ -48,8 +48,14 @@ public class ModpackItem
 /// <summary>整合包的一个可安装版本。</summary>
 public class ModpackVersion
 {
-    /// <summary>源内版本 Id。</summary>
+    /// <summary>源内版本 Id（Modrinth 为 version id；CurseForge 为 fileId）。</summary>
     public string Id { get; init; } = "";
+
+    /// <summary>
+    /// 所属项目在源内的 Id（CurseForge 需用它 + <see cref="Id"/> 才能换到下载直链；
+    /// Modrinth 的直链已内嵌在 <see cref="FileUrl"/> 里，此字段可为空）。
+    /// </summary>
+    public string ProjectId { get; init; } = "";
 
     /// <summary>展示名（如 "1.20.1-v3.2"）。</summary>
     public string Name { get; init; } = "";
@@ -60,7 +66,7 @@ public class ModpackVersion
     public string GameVersion { get; init; } = "";
     public string Loader { get; init; } = "";
 
-    /// <summary>整合包文件直链（.mrpack / .zip）。</summary>
+    /// <summary>整合包文件直链（.mrpack / .zip）。CurseForge 源留空，安装时按 ProjectId + Id 现解析。</summary>
     public string FileUrl { get; init; } = "";
 
     public string FileName { get; init; } = "";
@@ -109,6 +115,12 @@ public class ModpackDetail
     /// <summary>站内页面地址。</summary>
     public string? PageUrl { get; init; }
 
+    /// <summary>
+    /// 作者是否允许第三方分发（CurseForge 的合规底线）。
+    /// 为 false 时不得自动下载，界面需提示用户前往官网手动获取；Modrinth 恒为 true。
+    /// </summary>
+    public bool DistributionAllowed { get; init; } = true;
+
     public bool HasVersions => Versions.Count > 0;
 
     public string DownloadsText => Downloads switch
@@ -121,8 +133,8 @@ public class ModpackDetail
 }
 
 /// <summary>
-/// 整合包在线源抽象（规格 2.2 → 整合包：在线浏览 Modrinth，一键安装）。
-/// 当前仅内置 Modrinth 源（免 Key 常驻可用）。
+/// 整合包在线源抽象（规格 2.2 → 整合包：在线浏览，一键安装）。
+/// 内置 Modrinth（免 Key 常驻可用）与 CurseForge（需 API Key，未配置时不可用）。
 /// </summary>
 public interface IModpackSource
 {

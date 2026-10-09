@@ -1,3 +1,4 @@
+using System.IO.Compression;
 using System.Text.Json;
 using MCLCS.Core.Download;
 using MCLCS.Core.Models;
@@ -28,9 +29,26 @@ public sealed class ModpackInstallResult
     public int ModCount { get; init; }
 }
 
+/// <summary>整合包归档格式。</summary>
+public enum ModpackFormat
+{
+    /// <summary>无法识别（既没有 modrinth.index.json 也没有 manifest.json）。</summary>
+    Unknown,
+    /// <summary>Modrinth <c>.mrpack</c>（特征文件 modrinth.index.json）。</summary>
+    Modrinth,
+    /// <summary>CurseForge 整合包 zip（特征文件 manifest.json）。</summary>
+    CurseForge
+}
+
 /// <summary>
-/// Modrinth 整合包安装器（.mrpack 格式）。
-/// 流程：解压 → 读 modrinth.index.json → 安装 MC + loader → 并行下载文件 → 复制 overrides。
+/// 整合包安装器（Modrinth <c>.mrpack</c> 与 CurseForge zip 两种格式）。
+/// <para>
+/// Modrinth：解压 → 读 modrinth.index.json → 安装 MC + loader → 并行下载文件 → 复制 overrides。
+/// </para>
+/// <para>
+/// CurseForge：解压 → 读 manifest.json → 安装 MC + loader → 按 projectID/fileID 批量换直链后下载 →
+/// 复制 manifest 声明的覆盖目录。作者关闭第三方分发（<c>allowModDistribution=false</c>）的文件会被跳过并记录。
+/// </para>
 /// <para>
 /// 支持<b>隔离安装</b>：整合包的 mods / config / resourcepacks 落到 <c>versions/&lt;整合包名&gt;/</c>，
 /// 与其它版本互不干扰（规格 3.13 多实例）。libraries / assets 仍走共享目录，避免重复下载几个 G。
@@ -111,7 +129,7 @@ public class ModpackInstaller
             var modCount = await DownloadPackFiles(index, targetDir, progress, ct);
 
             // 5. 复制 overrides
-            CopyOverrides(tempDir, targetDir);
+            CopyOverrides(tempDir, targetDir, "overrides", "client-overrides");
 
             _logger?.Log($"整合包 {index.Name} 安装完成（{modCount} 个 Mod）");
 
@@ -159,58 +177,297 @@ public class ModpackInstaller
         return dir;
     }
 
-    /// <summary>安装原版与 loader，返回最终可启动的叶子版本 Id。</summary>
-    private async Task<string> InstallGameAndLoader(ModrinthPackIndex index,
+    /// <summary>Modrinth 整合包：装原版 + 按 dependencies 装 loader。</summary>
+    private Task<string> InstallGameAndLoader(ModrinthPackIndex index,
         IProgress<(int Done, int Total)>? progress,
         CancellationToken ct)
-    {
-        var leafId = await InstallGameAndLoaderCore(index, progress, ct);
-        return leafId;
-    }
+        => InstallBaseAsync(index.VersionId, index.Dependencies.Keys, progress, ct);
 
-    /// <summary>装原版与 loader，返回最终叶子版本 Id（有 loader 时为 loader 版本 Id）。</summary>
-    private async Task<string> InstallGameAndLoaderCore(ModrinthPackIndex index,
+    /// <summary>
+    /// 统一安装「原版 + 加载器」，返回最终可启动的叶子版本 Id（有加载器时为加载器版本 Id）。
+    /// Modrinth 与 CurseForge 共用。加载器名兼容 Modrinth 的 <c>fabric-loader</c>/<c>forge</c>/<c>quilt-loader</c>/<c>neoforge</c>
+    /// 与 CurseForge 的 <c>forge-47.2.0</c> 形式。
+    /// </summary>
+    private async Task<string> InstallBaseAsync(string mcVersion, IEnumerable<string> loaderIds,
         IProgress<(int Done, int Total)>? progress,
         CancellationToken ct)
     {
-        // 安装原版
-        _logger?.Log($"安装原版 Minecraft {index.VersionId} ...");
+        _logger?.Log($"安装原版 Minecraft {mcVersion} ...");
         var vanilla = new VanillaInstaller(_gameRoot, _client, _downloader, _logger);
-        await vanilla.InstallAsync(index.VersionId, progress, ct);
+        await vanilla.InstallAsync(mcVersion, progress, ct);
 
-        var leafId = index.VersionId;
+        var leafId = mcVersion;
 
-        // 按 dependencies 安装 loader
-        foreach (var (loader, version) in index.Dependencies)
+        foreach (var raw in loaderIds)
         {
-            if (loader == "minecraft") continue;
+            if (string.IsNullOrWhiteSpace(raw) || raw.Equals("minecraft", StringComparison.OrdinalIgnoreCase))
+                continue;
 
-            _logger?.Log($"安装 loader: {loader} {version}");
+            var loader = SplitLoaderId(raw, out var loaderVersion);
+            _logger?.Log(string.IsNullOrEmpty(loaderVersion)
+                ? $"安装 loader: {loader}"
+                : $"安装 loader: {loader} {loaderVersion}");
+
             switch (loader)
             {
-                case "fabric-loader":
+                case "fabric":
                     await new FabricInstaller(_gameRoot, _client, _downloader, _logger)
-                        .InstallAsync(index.VersionId, progress, ct);
-                    leafId = LatestVersionIdContaining(index.VersionId, "fabric") ?? leafId;
+                        .InstallAsync(mcVersion, progress, ct);
+                    leafId = LatestVersionIdContaining(mcVersion, "fabric") ?? leafId;
                     break;
                 case "forge":
                     await new ForgeInstaller(_gameRoot, _client, _downloader, _logger)
-                        .InstallAsync(index.VersionId, progress, ct);
-                    leafId = LatestVersionIdContaining(index.VersionId, "forge") ?? leafId;
-                    break;
-                case "quilt-loader":
-                    _logger?.Log("Quilt loader 暂未实现，跳过");
+                        .InstallAsync(mcVersion, progress, ct);
+                    leafId = LatestVersionIdContaining(mcVersion, "forge") ?? leafId;
                     break;
                 case "neoforge":
-                    _logger?.Log("NeoForge 暂未实现，跳过");
+                    await new NeoForgeInstaller(_gameRoot, _client, _downloader, _logger)
+                        .InstallAsync(mcVersion, progress, ct);
+                    leafId = LatestVersionIdContaining(mcVersion, "neoforge") ?? leafId;
+                    break;
+                case "quilt":
+                    await new QuiltInstaller(_gameRoot, _client, _downloader, _logger)
+                        .InstallAsync(mcVersion, progress, ct);
+                    leafId = LatestVersionIdContaining(mcVersion, "quilt") ?? leafId;
                     break;
                 default:
-                    _logger?.Log($"未知 loader: {loader}，跳过");
+                    _logger?.Log($"未知 loader: {raw}，跳过");
                     break;
             }
         }
 
         return leafId;
+    }
+
+    /// <summary>
+    /// 把加载器标识拆成「名称 + 版本」。
+    /// <c>fabric-loader</c> → (fabric, "")；<c>forge-47.2.0</c> → (forge, 47.2.0)；<c>neoforge-20.4.0</c> → (neoforge, 20.4.0)。
+    /// </summary>
+    public static string SplitLoaderId(string loaderId, out string version)
+    {
+        var s = (loaderId ?? "").Trim().ToLowerInvariant().Replace("-loader", "");
+        version = "";
+
+        var dash = s.LastIndexOf('-');
+        var name = s;
+        if (dash > 0)
+        {
+            name = s[..dash];
+            version = s[(dash + 1)..];
+        }
+
+        if (name.Contains("neoforge")) return "neoforge";
+        if (name.Contains("fabric")) return "fabric";
+        if (name.Contains("quilt")) return "quilt";
+        if (name.Contains("forge")) return "forge";
+        return name;
+    }
+
+    /// <summary>按 CurseForge classId 决定文件落地子目录。</summary>
+    public static string FolderForClassId(int? classId) => classId switch
+    {
+        CurseForgeApi.ClassResourcePacks => "resourcepacks",
+        CurseForgeApi.ClassWorlds => "saves",
+        _ => "mods"
+    };
+
+    /// <summary>把 CurseForge 返回的文件名清洗成安全的单层文件名。</summary>
+    private static string SanitizeFileName(string name)
+    {
+        var n = Path.GetFileName((name ?? "").Replace('\\', '/'));
+        foreach (var c in Path.GetInvalidFileNameChars()) n = n.Replace(c, '_');
+        return string.IsNullOrWhiteSpace(n) ? $"mod_{Guid.NewGuid():N}.jar" : n;
+    }
+
+    /// <summary>嗅探整合包格式（读 zip 中央目录里的特征文件，不解压）。</summary>
+    public static ModpackFormat DetectFormat(string archivePath)
+    {
+        try
+        {
+            using var zip = ZipFile.OpenRead(archivePath);
+            var names = zip.Entries.Select(e => e.FullName.Replace('\\', '/')).ToList();
+            if (names.Any(n => n.Equals("modrinth.index.json", StringComparison.OrdinalIgnoreCase)))
+                return ModpackFormat.Modrinth;
+            if (names.Any(n => n.Equals("manifest.json", StringComparison.OrdinalIgnoreCase)))
+                return ModpackFormat.CurseForge;
+            return ModpackFormat.Unknown;
+        }
+        catch
+        {
+            return ModpackFormat.Unknown;
+        }
+    }
+
+    /// <summary>
+    /// 按内容自动分派的安装入口（「从 Zip 导入」走这里）：
+    /// 自动识别 Modrinth <c>.mrpack</c> 与 CurseForge 整合包 zip，识别不了时给出明确原因。
+    /// </summary>
+    public async Task<ModpackInstallResult> InstallAnyAsync(string archivePath,
+        bool isolated = false,
+        string? preferredName = null,
+        IProgress<(int Done, int Total)>? progress = null,
+        CancellationToken ct = default)
+    {
+        return DetectFormat(archivePath) switch
+        {
+            ModpackFormat.CurseForge => await InstallCurseForgeAsync(archivePath, isolated, preferredName, progress, ct),
+            ModpackFormat.Modrinth => await InstallAsync(archivePath, isolated, preferredName, progress, ct),
+            _ => throw new InvalidDataException(
+                "无法识别的整合包：需要 Modrinth 的 modrinth.index.json 或 CurseForge 的 manifest.json")
+        };
+    }
+
+    /// <summary>
+    /// 安装 CurseForge 整合包 zip（<c>manifest.json</c> + <c>overrides/</c>）。
+    /// <para>
+    /// 合规：作者关闭第三方分发（<c>allowModDistribution=false</c>）的文件无法自动下载，
+    /// 会被跳过并在日志中逐条记录，安装结束后汇总提示。
+    /// </para>
+    /// </summary>
+    public async Task<ModpackInstallResult> InstallCurseForgeAsync(string packPath,
+        bool isolated = false,
+        string? preferredName = null,
+        IProgress<(int Done, int Total)>? progress = null,
+        CancellationToken ct = default)
+    {
+        if (!File.Exists(packPath))
+            throw new FileNotFoundException("整合包文件不存在", packPath);
+        if (!CurseForgeConfig.HasKey)
+            throw new InvalidOperationException(
+                "安装 CurseForge 整合包需要 API Key，请先在「设置 → 下载」中配置。");
+
+        var tempDir = Path.Combine(Path.GetTempPath(), "chert_cfpack_" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            _logger?.Log("解压 CurseForge 整合包 ...");
+            Unzip.ExtractToDirectory(packPath, tempDir);
+
+            var manifestPath = Path.Combine(tempDir, "manifest.json");
+            if (!File.Exists(manifestPath))
+                throw new InvalidDataException("整合包缺少 manifest.json");
+
+            var manifest = JsonSerializer.Deserialize<CurseForgePackManifest>(
+                               await File.ReadAllTextAsync(manifestPath, ct))
+                           ?? throw new InvalidDataException("无法解析 manifest.json");
+
+            var mcVersion = manifest.Minecraft?.Version ?? "";
+            if (string.IsNullOrWhiteSpace(mcVersion))
+                throw new InvalidDataException("manifest.json 未声明 Minecraft 版本");
+
+            _logger?.Log($"整合包: {manifest.Name} (MC {mcVersion})");
+
+            // 1. 原版 + 加载器（取 primary，没有 primary 则取第一项）
+            var loaders = manifest.Minecraft?.ModLoaders ?? new List<CurseForgePackLoader>();
+            var primary = loaders.FirstOrDefault(l => l.Primary) ?? loaders.FirstOrDefault();
+            var loaderIds = primary is null ? Array.Empty<string>() : new[] { primary.Id };
+
+            var leafId = await InstallBaseAsync(mcVersion, loaderIds, progress, ct);
+
+            // 2. 决定内容落地目录
+            var targetDir = _gameRoot;
+            var versionId = leafId;
+            var renamed = false;
+
+            if (isolated)
+            {
+                var baseId = VersionIsolation.SafeVersionId(preferredName ?? manifest.Name, mcVersion);
+                if (string.Equals(baseId, leafId, StringComparison.OrdinalIgnoreCase))
+                    baseId = $"{baseId}-整合包";
+
+                versionId = VersionIsolation.ResolveIdConflict(_gameRoot, baseId, out renamed);
+                targetDir = CreateIsolatedVersion(versionId, leafId, manifest.Name);
+                _logger?.Log($"隔离安装到 versions/{versionId}（继承 {leafId}）");
+            }
+
+            // 3. 按 projectID/fileID 批量换直链后下载
+            var (modCount, skipped) = await DownloadCurseForgeFilesAsync(manifest, targetDir, progress, ct);
+
+            // 4. 复制 manifest 声明的覆盖目录
+            var overridesName = string.IsNullOrWhiteSpace(manifest.Overrides) ? "overrides" : manifest.Overrides;
+            CopyOverrides(tempDir, targetDir, overridesName);
+
+            if (skipped > 0)
+                _logger?.Log($"注意：{skipped} 个文件因作者未开放第三方分发而跳过，请前往 CurseForge 官网手动下载。");
+
+            _logger?.Log($"整合包 {manifest.Name} 安装完成（{modCount} 个文件）");
+
+            return new ModpackInstallResult
+            {
+                Name = manifest.Name,
+                VersionId = versionId,
+                GameDir = targetDir,
+                Isolated = isolated,
+                Renamed = renamed,
+                ModCount = modCount
+            };
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+        }
+    }
+
+    /// <summary>
+    /// 下载 CurseForge 整合包声明的文件，返回 (成功数, 因分发限制跳过数)。
+    /// 先用批量接口一次拿全元数据（含 classId 决定落地目录），避免逐个请求打满配额。
+    /// </summary>
+    private async Task<(int Done, int Skipped)> DownloadCurseForgeFilesAsync(
+        CurseForgePackManifest manifest, string targetDir,
+        IProgress<(int Done, int Total)>? progress,
+        CancellationToken ct)
+    {
+        var required = manifest.Files.Where(f => f.Required && f.FileId > 0).ToList();
+        if (required.Count == 0) return (0, 0);
+
+        var cf = new CurseForgeClient(_client);
+
+        // 文件元数据（一次 1000 条）
+        var files = await cf.GetFilesByIdsAsync(required.Select(f => f.FileId).ToList(), ct);
+        var fileById = files.ToDictionary(f => f.Id);
+
+        // 项目元数据（拿 classId，决定落到 mods / resourcepacks / saves）
+        var mods = await cf.GetModsByIdsAsync(required.Select(f => f.ProjectId).Distinct().ToList(), ct);
+        var classById = mods.GroupBy(m => m.Id).ToDictionary(g => g.Key, g => g.First().ClassId);
+
+        var items = new List<DownloadItem>();
+        var skipped = 0;
+
+        foreach (var rf in required)
+        {
+            if (!fileById.TryGetValue(rf.FileId, out var meta) || !meta.IsAvailable)
+            {
+                skipped++;
+                _logger?.Log($"跳过不可用文件 {rf.ProjectId}/{rf.FileId}");
+                continue;
+            }
+
+            var url = meta.DownloadUrl;
+            if (string.IsNullOrWhiteSpace(url))
+            {
+                // 作者关闭第三方分发时直链为空，需服务端现算；仍拿不到即视为禁止分发
+                url = await cf.ResolveDownloadUrlAsync(rf.ProjectId, rf.FileId, ct);
+            }
+            if (string.IsNullOrWhiteSpace(url))
+            {
+                skipped++;
+                _logger?.Log($"该文件未开放第三方分发，已跳过：{meta.FileName}");
+                continue;
+            }
+
+            var folder = FolderForClassId(classById.TryGetValue(rf.ProjectId, out var cid) ? cid : null);
+            var dest = Path.Combine(targetDir, folder, SanitizeFileName(meta.FileName));
+            Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
+
+            items.Add(new DownloadItem(new[] { url }, dest, meta.Sha1, meta.FileLength));
+        }
+
+        if (items.Count > 0)
+        {
+            _logger?.Log($"下载 {items.Count} 个整合包文件 ...");
+            await _downloader.DownloadBatchAsync(items, progress, ct);
+        }
+
+        return (items.Count, skipped);
     }
 
     /// <summary>在 versions 目录里找出最新的、同时包含 MC 版本号与 loader 关键字的版本 Id。</summary>
@@ -259,10 +516,10 @@ public class ModpackInstaller
         return items.Count;
     }
 
-    private void CopyOverrides(string tempDir, string targetDir)
+    /// <summary>复制覆盖目录（Modrinth：overrides → client-overrides 后者优先；CurseForge：manifest 声明的目录）。</summary>
+    private void CopyOverrides(string tempDir, string targetDir, params string[] names)
     {
-        // client-overrides 优先级高于 overrides（Modrinth 规范）
-        foreach (var name in new[] { "overrides", "client-overrides" })
+        foreach (var name in names)
         {
             var overridesDir = Path.Combine(tempDir, name);
             if (!Directory.Exists(overridesDir)) continue;

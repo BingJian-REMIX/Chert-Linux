@@ -5,10 +5,13 @@ using Avalonia.Media;
 using Avalonia.Markup.Xaml;
 using Avalonia.Styling;
 using MCLCS.Core.Ai;
+using MCLCS.Core.Badges;
 using MCLCS.Core.Download;
+using MCLCS.Core.Launcher;
 using MCLCS.Core.Profiles;
 using MCLCS.Core.Theme;
 using MCLCS.Core.Utils;
+using MCLCS.Linux.App.Services;
 using MCLCS.Linux.App.Themes;
 
 namespace MCLCS.Linux.App;
@@ -25,6 +28,11 @@ public class App : Application
 
         // 同步下载源偏好到 MirrorPolicy（设置 → 下载），使各镜像 URL 按用户优先级重排。
         MirrorPolicy.Preference = ProfileStore.Load(GameConstants.DefaultGameRoot).DownloadSource;
+
+        // ★ 配置迁移（对齐 WPF 2.6）：从启动器自动更新到本版本时，用户的旧配置还留在游戏目录里。
+        //   触发条件由 ConfigMigrator 内部控制 —— 必须已存在旧配置文件才迁移，
+        //   所以「初次使用 / 全新安装」不会有任何提示。迁移失败只提示不阻断启动。
+        RunConfigMigration();
 
         // 命令（ICommand）里未捕获的异常：Toast 提示，不再默默消失或冒泡成崩溃。
         // 与 WPF App.xaml.cs 里挂的 CommandErrors.Reporter 同源（「没装 Java」这类
@@ -60,6 +68,121 @@ public class App : Application
 
         // 外观：把 profile 中持久化的主题色 / 字体缩放 / 背景图真正应用到运行时（对齐 WPF，修复空壳）
         ApplyAppearanceFromProfile();
+
+        ApplyStartupProfileExtras();
+    }
+
+    /// <summary>
+    /// 启动期需要读 profile 才能决定的其它事项：Toast 时长、开机自启、首次自动探测 Java、勋章计数。
+    /// 全部做失败兜底，任何一项出问题都不阻断启动。
+    /// </summary>
+    private static void ApplyStartupProfileExtras()
+    {
+        LauncherProfile profile;
+        try
+        {
+            profile = ProfileStore.Load(GameConstants.DefaultGameRoot);
+        }
+        catch
+        {
+            profile = new LauncherProfile();
+        }
+
+        try
+        {
+            ToastService.Instance.DurationSeconds = profile.ToastDurationSeconds;
+            AutoStartService.Apply(profile.AutoStartLauncher);
+        }
+        catch { /* 非关键功能 */ }
+
+        // bug #19：首次安装（尚未配置 Java）时自动探测本机 Java 并持久化，避免每次都要手动「自动检测」。
+        // 走 JavaValidator 交叉校验后的清单，剔除「假 Java」/ 损坏安装；失败不影响启动。
+        if (string.IsNullOrWhiteSpace(profile.JavaPath))
+        {
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    var javas = await JavaValidator.DetectValidatedAsync();
+                    var required = GameConstants.MinimumJavaMajorVersion;
+                    var best = javas.Where(j => j.MajorVersion >= required)
+                                    .OrderByDescending(j => j.MajorVersion).FirstOrDefault()
+                                ?? javas.OrderByDescending(j => j.MajorVersion).FirstOrDefault();
+                    if (best is null) return;
+                    var fresh = ProfileStore.Load(GameConstants.DefaultGameRoot);
+                    fresh.JavaPath = best.JavaExe;
+                    // ProfileStore.Save 依据 profile.GameRoot 落盘，首次启动时需兜底填充。
+                    if (string.IsNullOrWhiteSpace(fresh.GameRoot))
+                        fresh.GameRoot = GameConstants.DefaultGameRoot;
+                    ProfileStore.Save(fresh);
+                }
+                catch { /* 探测失败不影响启动 */ }
+            });
+        }
+
+        // 清单 #49：勋章接口预留 —— 记录启动次数并解锁「初次点亮」。
+        // 当前仅本地持久化，UserId 字段预留待账号系统接入后回填。
+        try
+        {
+            BadgeService.Unlock(BadgeIds.LauncherFirstStart);
+            BadgeService.Increment(BadgeIds.LauncherLaunchCount);
+        }
+        catch { /* 勋章属非关键功能，失败不影响启动 */ }
+    }
+
+    /// <summary>
+    /// 启动时的配置迁移（幂等）。仅当游戏目录里已存在旧版配置文件时才会真正执行，
+    /// 因此初次使用不会触发；从旧版本自动更新上来才会提示。
+    /// </summary>
+    private static void RunConfigMigration()
+    {
+        ConfigMigrator.Result result;
+        try
+        {
+            result = ConfigMigrator.Run(GameConstants.DefaultGameRoot);
+        }
+        catch (Exception ex)
+        {
+            ShowToast("配置", $"配置迁移异常，已使用默认设置：{ex.Message}", true);
+            return;
+        }
+
+        switch (result.Outcome)
+        {
+            case ConfigMigrator.Outcome.Migrated:
+                ShowToast("配置",
+                    $"已从旧版本 v{result.FromVersion} 迁移到 v{result.ToVersion}：\n"
+                    + string.Join("\n", result.Changes), false);
+                break;
+
+            case ConfigMigrator.Outcome.VersionedOnly:
+                ShowToast("配置", $"配置已标记为 v{result.ToVersion}", false);
+                break;
+
+            case ConfigMigrator.Outcome.Failed:
+                ShowToast("配置", result.Error ?? "配置迁移失败，已保留原配置", true);
+                break;
+
+            // Skipped：初次使用或已是最新，不打扰用户
+            case ConfigMigrator.Outcome.Skipped:
+            default:
+                break;
+        }
+    }
+
+    private static void ShowToast(string title, string message, bool danger)
+    {
+        try
+        {
+            ToastService.Instance.Show(new ToastOptions
+            {
+                Title = title,
+                Message = message,
+                DurationMs = 6000,
+                Danger = danger
+            });
+        }
+        catch { /* 提示失败不影响启动 */ }
     }
 
     /// <summary>把选定主题的调色板写入 Application.Resources，并切换 Fluent 主题变体。</summary>

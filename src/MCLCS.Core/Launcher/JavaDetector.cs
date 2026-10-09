@@ -20,6 +20,21 @@ public class JavaInfo
     /// <summary>展示用版本串。</summary>
     public string RawVersion { get; set; } = "";
 
+    /// <summary>发行商（由 <see cref="JavaValidator"/> 校验后回填，未校验时为空）。</summary>
+    public string Vendor { get; set; } = "";
+
+    /// <summary>JVM 自述的安装目录（用于识别同一安装的不同入口）。</summary>
+    public string JavaHome { get; set; } = "";
+
+    /// <summary>CPU 架构（如 amd64 / aarch64）。</summary>
+    public string Arch { get; set; } = "";
+
+    /// <summary>是否为 64 位 JVM（未知时按常见的 64 位处理）。</summary>
+    public bool Is64Bit { get; set; } = true;
+
+    /// <summary>是否已通过 <see cref="JavaValidator"/> 的交叉校验。</summary>
+    public bool Verified { get; set; }
+
     public override string ToString() => $"Java {MajorVersion} ({JavaExe})";
 }
 
@@ -171,12 +186,11 @@ public static class JavaDetector
     }
 
     /// <summary>筛选满足最小版本要求、且版本最高的 Java。</summary>
-    public static async Task<JavaInfo?> FindBestAsync(int minMajor, IEnumerable<string>? extraDirs = null)
+    public static async Task<JavaInfo?> FindBestAsync(int minMajor, bool exact = false, IEnumerable<string>? extraDirs = null)
     {
         var all = await DetectAsync(extraDirs);
-        return all.Where(j => j.MajorVersion >= minMajor)
-                  .OrderByDescending(j => j.MajorVersion)
-                  .FirstOrDefault();
+        var filtered = exact ? all.Where(j => j.MajorVersion == minMajor) : all.Where(j => j.MajorVersion >= minMajor);
+        return exact ? filtered.FirstOrDefault() : filtered.OrderByDescending(j => j.MajorVersion).FirstOrDefault();
     }
 
     /// <summary>从版本 Id 中解析 MC 版本号（兼容 "1.20.4"、"fabric-1.20.4"、"1.20.4-forge-..." 等写法）。</summary>
@@ -248,14 +262,23 @@ public static class JavaDetector
         {
             var match = detected.FirstOrDefault(j =>
                 string.Equals(j.JavaExe, explicitPath, StringComparison.OrdinalIgnoreCase));
-            if (match is not null) return match;
+            if (match is not null)
+            {
+                // 老版本（需精确 Java 8）不接受显式路径的高/低版本兜底，否则交由下方自动选择/下载
+                var reqForExplicit = RequiredMajorForVersionId(gameRoot, versionId);
+                if (reqForExplicit != 8 || match.MajorVersion == 8) return match;
+            }
         }
 
         var required = RequiredMajorForVersionId(gameRoot, versionId);
-        var satisfying = detected.Where(j => j.MajorVersion >= required).ToList();
+        // 老 MC / Forge（1.16.5 及以下）只能运行在精确 Java 8 上，不能用更高版本兜底
+        bool exact = required == 8;
+        var satisfying = detected.Where(j => exact ? j.MajorVersion == required : j.MajorVersion >= required).ToList();
         // 满足要求时优先选最低版本（老 MC/Forge 常不兼容过高 Java）
-        return satisfying.Count > 0
-            ? satisfying.OrderBy(j => j.MajorVersion).First()
-            : detected.OrderByDescending(j => j.MajorVersion).First();
+        if (satisfying.Count > 0)
+            return satisfying.OrderBy(j => j.MajorVersion).First();
+        // 精确需求的版本（如 Java 8）本地无匹配时不兜底高版本，交由上层自动下载对应版本
+        if (exact) return null;
+        return detected.OrderByDescending(j => j.MajorVersion).First();
     }
 }

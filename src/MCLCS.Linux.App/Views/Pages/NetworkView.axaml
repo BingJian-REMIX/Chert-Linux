@@ -11,8 +11,23 @@
   <ScrollViewer Margin="18">
     <StackPanel Spacing="16" MaxWidth="900" HorizontalAlignment="Left">
 
-      <Button Classes="modal-btn accent" Content="开始诊断" Command="{Binding DiagnoseCommand}"
-              IsEnabled="{Binding !Busy}" HorizontalAlignment="Left"/>
+      <StackPanel Orientation="Horizontal" Spacing="10">
+        <Button Classes="modal-btn accent" Content="开始诊断" Command="{Binding DiagnoseCommand}"
+                IsEnabled="{Binding !Busy}"/>
+      </StackPanel>
+
+      <StackPanel Spacing="10">
+        <TextBlock Text="带宽测速" FontWeight="Bold" FontSize="14"/>
+        <StackPanel Orientation="Horizontal" Spacing="10">
+          <TextBlock Text="时长" VerticalAlignment="Center"/>
+          <ComboBox MinWidth="90" ItemsSource="{Binding BandwidthSeconds}"
+                    SelectedItem="{Binding SelectedBandwidthSeconds}"/>
+          <Button Classes="modal-btn" Content="开始测速" Command="{Binding BandwidthCommand}"
+                  IsEnabled="{Binding !Busy}"/>
+        </StackPanel>
+        <TextBlock Text="{Binding BandwidthText}" FontFamily="Consolas" FontSize="12" TextWrapping="Wrap"
+                   IsVisible="{Binding BandwidthText, Converter={x:Static ObjectConverters.IsNotNull}}"/>
+      </StackPanel>
 
       <StackPanel Spacing="8">
         <TextBlock Text="诊断结果" FontWeight="Bold" FontSize="14"/>

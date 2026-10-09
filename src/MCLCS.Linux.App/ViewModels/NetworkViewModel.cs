@@ -33,6 +33,54 @@ public class NetworkViewModel : ObservableObject
     }
 
     public ICommand DiagnoseCommand => new AsyncRelayCommand(_ => DiagnoseAsync());
+    public ICommand BandwidthCommand => new AsyncRelayCommand(_ => BandwidthAsync());
+
+    // ---- 带宽测速（对齐 WPF 工具箱网络页）----
+
+    /// <summary>可选测速时长（秒）。</summary>
+    public IReadOnlyList<int> BandwidthSeconds { get; } = new[] { 5, 10, 15, 30 };
+
+    private int _bandwidthSeconds = 10;
+    public int SelectedBandwidthSeconds
+    {
+        get => _bandwidthSeconds;
+        set => SetField(ref _bandwidthSeconds, value);
+    }
+
+    private string _bandwidthText = "";
+    /// <summary>最近一次测速结果的可读摘要。</summary>
+    public string BandwidthText
+    {
+        get => _bandwidthText;
+        set => SetField(ref _bandwidthText, value);
+    }
+
+    private async Task BandwidthAsync()
+    {
+        Busy = true;
+        BandwidthText = "";
+        Status = $"正在测速（最多 {SelectedBandwidthSeconds} 秒）…";
+        try
+        {
+            var r = await BandwidthTester.RunAsync(SelectedBandwidthSeconds, 4);
+            if (!r.Ok)
+            {
+                Status = "测速失败：未能取得有效速率。";
+                return;
+            }
+            BandwidthText = $"{r.SourceName}｜单线程 {r.SingleText}｜多线程 {r.MultiText}｜"
+                            + $"共下载 {r.BytesDownloaded / 1024.0 / 1024.0:F1} MB / {r.ElapsedSeconds:F1}s";
+            Status = "测速完成";
+        }
+        catch (Exception ex)
+        {
+            Status = $"测速失败：{ex.Message}";
+        }
+        finally
+        {
+            Busy = false;
+        }
+    }
 
     private async Task DiagnoseAsync()
     {

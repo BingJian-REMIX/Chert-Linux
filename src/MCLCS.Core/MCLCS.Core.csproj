@@ -4,6 +4,27 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <!-- QUIC 隧道（P2P）在 Linux 上依赖 libmsquic；代码内已用 QuicListener.IsSupported 运行期门控，此处只关掉平台标注警告 -->
+    <NoWarn>$(NoWarn);CA1416</NoWarn>
   </PropertyGroup>
+
+  <!--
+    机密值「构建时注入」：CurseForge API Key 等不入库的值放仓库根的
+    Directory.Build.user.props（该文件已被 .gitignore 忽略，不会进 git）。
+    本地构建时自动导入并烧进二进制 —— 发布包开箱即用，而仓库里看不到 Key。
+    也可用命令行覆盖：dotnet build -p:CurseForgeApiKey=xxx
+  -->
+  <Import Project="$(MSBuildThisFileDirectory)..\..\Directory.Build.user.props"
+          Condition="Exists('$(MSBuildThisFileDirectory)..\..\Directory.Build.user.props')" />
+
+  <PropertyGroup>
+    <!-- 未注入时留空：运行期回退到「用户自定义 Key」，仍为空则提示未配置 -->
+    <CurseForgeApiKey Condition="'$(CurseForgeApiKey)' == ''"></CurseForgeApiKey>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 编译为 [assembly: AssemblyMetadata("CurseForgeApiKey", "...")]，由 CurseForgeConfig 运行期读取 -->
+    <AssemblyMetadata Include="CurseForgeApiKey" Value="$(CurseForgeApiKey)" />
+  </ItemGroup>
 
 </Project>

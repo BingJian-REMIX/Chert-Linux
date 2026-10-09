@@ -7,6 +7,7 @@ using MCLCS.Core.Launcher;
 using MCLCS.Core.Localization;
 using MCLCS.Core.Mvvm;
 using MCLCS.Core.Profiles;
+using MCLCS.Core.Toolbox;
 using MCLCS.Core.Utils;
 using MCLCS.Linux.App.Services;
 
@@ -103,6 +104,102 @@ public class CrashViewModel : ObservableObject
         (RepairPlan?.NonDestructive ?? false)
             ? "本修复全程非破坏性：仅修改启动器配置、外部 Java 或依赖缓存，或把冲突 Mod 重命名为 .disabled，绝不删除/改写游戏原文件（存档、配置、mod、版本 jar 等）。"
             : "";
+
+    // ---- 聊天记录提取（对齐 WPF 崩溃报告页；Core ChatExtractor 此前在 Linux 端无人调用）----
+
+    private ObservableCollection<ChatEntry> _chatEntries = new();
+    public ObservableCollection<ChatEntry> ChatEntries
+    {
+        get => _chatEntries;
+        set => SetField(ref _chatEntries, value);
+    }
+
+    private bool _hasChat;
+    public bool HasChat
+    {
+        get => _hasChat;
+        set => SetField(ref _hasChat, value);
+    }
+
+    private string _chatStatus = "";
+    public string ChatStatus
+    {
+        get => _chatStatus;
+        set => SetField(ref _chatStatus, value);
+    }
+
+    public ICommand ExtractChatCommand => new RelayCommand(_ => ExtractChat());
+    public ICommand ExportChatCommand => new RelayCommand(p => ExportChat(p as string ?? "txt"));
+
+    /// <summary>从最新一份日志（latest.log 优先）里提取聊天记录。</summary>
+    private void ExtractChat()
+    {
+        try
+        {
+            var logsDir = Path.Combine(_gameRoot, "logs");
+            if (!Directory.Exists(logsDir))
+            {
+                SetChatEmpty("日志目录不存在，无法提取聊天记录。");
+                return;
+            }
+            var candidates = Directory.GetFiles(logsDir, "*.log")
+                .OrderBy(f => string.Equals(Path.GetFileName(f), "latest.log", StringComparison.OrdinalIgnoreCase) ? 0 : 1)
+                .ThenByDescending(f => new FileInfo(f).LastWriteTimeUtc)
+                .Select(f => new FileInfo(f))
+                .ToList();
+            if (candidates.Count == 0)
+            {
+                SetChatEmpty("日志目录为空，无法提取聊天记录。");
+                return;
+            }
+
+            var text = LogManager.ReadLog(candidates[0].FullName);
+            var list = ChatExtractor.Extract(text);
+            ChatEntries = new ObservableCollection<ChatEntry>(list);
+            HasChat = list.Count > 0;
+            ChatStatus = list.Count > 0
+                ? $"已从 {candidates[0].Name} 提取 {list.Count} 条聊天记录。"
+                : $"未在 {candidates[0].Name} 中找到聊天记录。";
+        }
+        catch (Exception ex)
+        {
+            SetChatEmpty("提取聊天记录失败：" + ex.Message);
+        }
+    }
+
+    private void SetChatEmpty(string status)
+    {
+        ChatEntries = new ObservableCollection<ChatEntry>();
+        HasChat = false;
+        ChatStatus = status;
+    }
+
+    /// <summary>把聊天记录导出为 txt / md（落到桌面，环境变量不可用时退回 Home）。</summary>
+    private void ExportChat(string format)
+    {
+        if (!HasChat || ChatEntries.Count == 0) return;
+        try
+        {
+            var isMd = format.Equals("md", StringComparison.OrdinalIgnoreCase);
+            var dir = Environment.GetEnvironmentVariable("XDG_DESKTOP_DIR");
+            if (string.IsNullOrWhiteSpace(dir) || !Directory.Exists(dir))
+                dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Desktop");
+            Directory.CreateDirectory(dir);
+
+            var stamp = DateTime.Now.ToString("yyyyMMdd-HHmmss");
+            var path = Path.Combine(dir, $"minecraft-chat-{stamp}.{(isMd ? "md" : "txt")}");
+            File.WriteAllText(path, isMd
+                ? ChatExtractor.ToMarkdown(ChatEntries)
+                : ChatExtractor.ToPlainText(ChatEntries));
+
+            ChatStatus = $"已导出到 {path}";
+            ToastService.Instance.Show(new ToastOptions { Title = "聊天记录已导出", Message = path, Danger = false });
+        }
+        catch (Exception ex)
+        {
+            ToastService.Instance.Show(new ToastOptions { Title = "导出失败", Message = ex.Message, Danger = true });
+        }
+    }
 
     public ICommand RefreshCommand => new RelayCommand(_ => Refresh());
     public ICommand AnalyzeCommand => new RelayCommand(_ => AnalyzeSelected());

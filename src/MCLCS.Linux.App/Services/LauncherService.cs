@@ -39,20 +39,70 @@ public class LauncherService : ILogger
     /// <summary>像素茶艺（PixelMap）地图站客户端（下载页 → 地图）。</summary>
     public PixelmapClient Pixelmap { get; }
 
-    /// <summary>当前可用的整合包在线源（Modrinth 免 Key 常驻）。</summary>
+    /// <summary>当前可用的整合包在线源（Modrinth 免 Key 常驻；CurseForge 需 API Key）。</summary>
     public IReadOnlyList<IModpackSource> ModpackSources { get; }
+
+    /// <summary>CurseForge API 客户端（搜索 / 详情 / 指纹匹配 / 直链解析）。未配置 Key 时不可用。</summary>
+    public CurseForgeClient CurseForge { get; }
 
     public LauncherService(string gameRoot)
     {
         GameRoot = gameRoot;
-        ApiClient = new HttpClient { Timeout = TimeSpan.FromMinutes(5) };
+        // 挂 CurseForgeAuthHandler：发往 forgecdn 的请求自动附加 x-api-key（2026-07 起 CDN 强制认证）
+        ApiClient = new HttpClient(new CurseForgeAuthHandler(new HttpClientHandler()))
+        {
+            Timeout = TimeSpan.FromMinutes(5)
+        };
         // 规格 2.2：地图站要求 User-Agent 为 MCLCS/版本号
         ApiClient.DefaultRequestHeaders.UserAgent.TryParseAdd(
             $"MCLCS/{GameConstants.LauncherVersion} (Linux; +{GameConstants.CnbRepoUrl})");
 
         _downloader = new HttpDownloader(ApiClient, 8, this);
         Pixelmap = new PixelmapClient(ApiClient);
-        ModpackSources = new IModpackSource[] { new ModrinthModpackSource(ApiClient) };
+
+        // 整合包在线源：Modrinth 免 Key 常驻可用；CurseForge 需 API Key（未配置时
+        // IsAvailable=false，界面显示原因且不影响 Modrinth）。
+        var cfSource = new CurseForgeModpackSource(ApiClient);
+        CurseForge = cfSource.Client;
+        ModpackSources = new IModpackSource[] { new ModrinthModpackSource(ApiClient), cfSource };
+
+        // 把 profile 里的 CurseForge 设置与下载偏好（限速 / 并发）同步进 Core
+        ApplyCurseForgeSettings();
+        ApplyDownloadPreferences();
+    }
+
+    /// <summary>
+    /// 重新读取 profile 并同步 CurseForge 配置（设置页保存 Key / API Root / 开关后调用）。
+    /// </summary>
+    public void ApplyCurseForgeSettings()
+    {
+        try
+        {
+            var profile = ProfileStore.Load(GameRoot);
+            CurseForgeConfig.Apply(profile.CurseForge);
+        }
+        catch
+        {
+            // 读配置失败不影响启动，按未配置处理
+        }
+    }
+
+    /// <summary>
+    /// 把 profile 里的下载偏好同步进 Core：全局限速 / 单任务重试次数。
+    /// 此前这两项「存了不用」——限速只在不可达的下载中心页里被设置。
+    /// </summary>
+    public void ApplyDownloadPreferences()
+    {
+        try
+        {
+            var profile = ProfileStore.Load(GameRoot);
+            DownloadSpeedLimiter.SetKilobytesPerSecond(profile.DownloadSpeedLimitKbps);
+            // DownloadAutoRetryCount 目前与 WPF 端一致：配置已持久化，重试逻辑尚未接线（待办）
+        }
+        catch
+        {
+            // 同上：配置不可读时保持默认（不限速 / 不重试）
+        }
     }
 
     /// <summary>按 Id 取得整合包源（未知 Id 回退到 Modrinth）。</summary>
@@ -139,13 +189,32 @@ public class LauncherService : ILogger
         string? sourceId, ModpackVersion version, bool isolated, string? preferredName,
         IProgress<double>? progress, CancellationToken ct)
     {
-        if (string.IsNullOrEmpty(version.FileUrl)) return null;
-        var tmp = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N") + ".mrpack");
+        var isCurseForge = string.Equals(sourceId, "curseforge", StringComparison.OrdinalIgnoreCase);
+
+        // CurseForge 的版本条目不带直链（作者可关闭第三方分发），此处按 modId + fileId 现解析
+        var url = version.FileUrl;
+        if (string.IsNullOrWhiteSpace(url) && isCurseForge)
+        {
+            if (int.TryParse(version.ProjectId, out var modId) && int.TryParse(version.Id, out var fileId))
+                url = await CurseForge.ResolveDownloadUrlAsync(modId, fileId, ct);
+
+            if (string.IsNullOrWhiteSpace(url))
+            {
+                Log("该整合包未开放第三方分发，请前往 CurseForge 官网手动下载后「从 Zip 导入」。");
+                return null;
+            }
+        }
+        if (string.IsNullOrWhiteSpace(url)) return null;
+
+        var tmp = Path.Combine(Path.GetTempPath(),
+            Guid.NewGuid().ToString("N") + (isCurseForge ? ".zip" : ".mrpack"));
         try
         {
-            await _downloader.DownloadAsync(new DownloadItem(new[] { version.FileUrl }, tmp, version.Sha1), progress, ct);
+            await _downloader.DownloadAsync(new DownloadItem(new[] { url }, tmp, version.Sha1), progress, ct);
             var installer = new ModpackInstaller(GameRoot, ApiClient, _downloader, this);
-            return await installer.InstallAsync(tmp, isolated, preferredName, null, ct);
+            return isCurseForge
+                ? await installer.InstallCurseForgeAsync(tmp, isolated, preferredName, null, ct)
+                : await installer.InstallAsync(tmp, isolated, preferredName, null, ct);
         }
         finally
         {
