@@ -1,12 +1,17 @@
 namespace MCLCS.Core.Input;
 
-/// <summary>触屏按钮类型：方向键（长按持续移动）/ 动作键（按下即触发）。</summary>
+/// <summary>触屏按钮类型：方向键（长按持续移动）/ 动作键（按下即触发）/ 切换键（点一下锁定）。</summary>
 public enum TouchButtonKind
 {
     /// <summary>方向键：按住期间保持按下（W / A / S / D）。</summary>
     Direction,
     /// <summary>动作键：按下即触发一次（跳跃 / 潜行 / 攻击等）。</summary>
-    Action
+    Action,
+    /// <summary>
+    /// 切换键：轻点一下进入「按住」状态并保持，游戏内相当于该键一直压着；
+    /// 再点一下才松开。用于需要长时间保持的键（默认布局里四向键正中的 Shift 潜行）。
+    /// </summary>
+    Toggle
 }
 
 /// <summary>清单 #11：触屏虚拟按键单项配置。</summary>
@@ -51,10 +56,21 @@ public sealed class TouchButtonConfig
 
 /// <summary>
 /// 清单 #11：触屏模式配置。开启后随游戏进程显示一块虚拟按键面板，
-/// 默认提供虚拟方向键（W / A / S / D）与跳跃键（Space），其余按键可自行添加并拖动排版。
+/// 默认布局为 6 个等大方块：左侧十字四向键（W / A / S / D），
+/// 十字正中是「点一下即锁定按住」的 Shift 潜行键，右侧一个 Space 跳跃键。
+/// 其余按键可自行添加并拖动排版。
 /// </summary>
 public sealed class TouchControlConfig
 {
+    /// <summary>
+    /// 默认布局的版本号。默认布局升级后会<b>自动</b>应用到老配置（见 <see cref="Normalize"/>），
+    /// v2 = 六键方形 + 正中 Shift 切换键；v1 = 旧的四向 + 大圆跳跃键布局。
+    /// </summary>
+    public const int CurrentLayoutVersion = 2;
+
+    /// <summary>布局版本。低于 <see cref="CurrentLayoutVersion"/> 时会被重置为当前默认布局。</summary>
+    public int LayoutVersion { get; set; } = CurrentLayoutVersion;
+
     /// <summary>总开关。</summary>
     public bool Enabled { get; set; }
 
@@ -91,23 +107,60 @@ public sealed class TouchControlConfig
     public List<TouchButtonConfig> Buttons { get; set; } = new();
 
     /// <summary>
-    /// 默认布局：左侧十字方向键（W 上 / A 左 / S 下 / D 右）+ 右侧跳跃键（Space）。
+    /// 反序列化后调用：默认布局有升级时（或缺按键时）重置为当前默认布局。
+    /// 用户在布局编辑器里改过的配置，版本号会被抬到当前值，因此不会被反复覆盖。
+    /// </summary>
+    public TouchControlConfig Normalize()
+    {
+        if (LayoutVersion < CurrentLayoutVersion)
+        {
+            // 只有完全没动过的「出厂原样」才自动换新；排版过的交给用户决定。
+            if (!HasCustomizedLayout) Buttons = CreateDefault().Buttons;
+            // 版本号无论如何都抬到当前值：表示这份配置已经过本次升级的处理
+            LayoutVersion = CurrentLayoutVersion;
+        }
+        return this;
+    }
+
+    /// <summary>
+    /// 是否为用户改动过的布局：按键序列与任一版「出厂布局」完全一致时视为没改过
+    /// （只看 Vk 序列 —— 用户单纯改个显示名不该被当作自定义排版）。
+    /// 自定义过的布局不做自动重置，避免覆盖用户排版；需要新版的用户点「恢复默认」即可。
+    /// </summary>
+    private bool HasCustomizedLayout =>
+        FactoryLayouts.All(f => !f.SequenceEqual(Buttons.Select(b => b.Vk)));
+
+    /// <summary>
+    /// 各版出厂布局的按键序列（Vk 顺序与当版 <see cref="CreateDefault"/> 一致），用于判断布局是否被用户改过。
+    /// </summary>
+    private static readonly int[][] FactoryLayouts =
+    {
+        new[] { 0x57, 0x41, 0x53, 0x44, 0x20 },       // v1：四向 + 大圆跳跃键
+        new[] { 0x57, 0x41, 0x10, 0x44, 0x53, 0x20 }  // v2：四向 + 正中 Shift 切换键 + 跳跃
+    };
+
+    /// <summary>
+    /// 默认布局（v2）：左侧十字四向键 + 正中 Shift 切换键（点一下锁定潜行）+ 右侧 Space 跳跃键，
+    /// 共 6 个等大方块。按 58px 方块 + 4px 间距排布，整体 182×182。
     /// </summary>
     public static TouchControlConfig CreateDefault() => new()
     {
         Enabled = false,
         Opacity = 0.72,
         PanelWidth = 420,
-        PanelHeight = 230,
+        PanelHeight = 200,
         Left = -1,
         Top = -1,
+        LayoutVersion = CurrentLayoutVersion,
         Buttons = new List<TouchButtonConfig>
         {
-            new() { Label = "前进", KeyName = "W", Vk = 0x57, Kind = TouchButtonKind.Direction, X = 62, Y = 8,  Size = 58 },
-            new() { Label = "左移", KeyName = "A", Vk = 0x41, Kind = TouchButtonKind.Direction, X = 0,  Y = 66, Size = 58 },
-            new() { Label = "后退", KeyName = "S", Vk = 0x53, Kind = TouchButtonKind.Direction, X = 62, Y = 124, Size = 58 },
-            new() { Label = "右移", KeyName = "D", Vk = 0x44, Kind = TouchButtonKind.Direction, X = 124, Y = 66, Size = 58 },
-            new() { Label = "跳跃", KeyName = "Space", Vk = 0x20, Kind = TouchButtonKind.Action, X = 300, Y = 78, Size = 78 }
+            new() { Label = "前进", KeyName = "W", Vk = 0x57, Kind = TouchButtonKind.Direction, X = 62,  Y = 0,   Size = 58 },
+            new() { Label = "左移", KeyName = "A", Vk = 0x41, Kind = TouchButtonKind.Direction, X = 0,   Y = 62,  Size = 58 },
+            // 四向键正中：潜行。点一下即保持按住，再点解除。
+            new() { Label = "潜行", KeyName = "Shift", Vk = 0x10, Kind = TouchButtonKind.Toggle, X = 62,  Y = 62,  Size = 58 },
+            new() { Label = "右移", KeyName = "D", Vk = 0x44, Kind = TouchButtonKind.Direction, X = 124, Y = 62,  Size = 58 },
+            new() { Label = "后退", KeyName = "S", Vk = 0x53, Kind = TouchButtonKind.Direction, X = 62,  Y = 124, Size = 58 },
+            new() { Label = "跳跃", KeyName = "Space", Vk = 0x20, Kind = TouchButtonKind.Action, X = 300, Y = 62,  Size = 58 }
         }
     };
 
@@ -120,7 +173,11 @@ public sealed class TouchControlConfig
             PanelWidth = PanelWidth,
             PanelHeight = PanelHeight,
             Left = Left,
-            Top = Top
+            Top = Top,
+            FollowGameWindow = FollowGameWindow,
+            FollowGameWindowLeftSide = FollowGameWindowLeftSide,
+            FollowGameWindowMargin = FollowGameWindowMargin,
+            LayoutVersion = LayoutVersion
         };
         c.Buttons = Buttons.Select(b => b.Clone()).ToList();
         return c;
