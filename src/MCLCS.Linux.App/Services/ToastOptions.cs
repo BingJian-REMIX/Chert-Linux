@@ -16,4 +16,10 @@ public sealed class ToastOptions
     /// 为 null 时跟随 <see cref="ToastService.DurationSeconds"/>（设置 → 通用 的 Toast 停留时长）。
     /// </summary>
     public int? DurationMs { get; init; }
+
+    /// <summary>弹出时刻（通知头部时间戳）。</summary>
+    public DateTime Timestamp { get; init; } = DateTime.Now;
+
+    /// <summary>应用名（通知头部展示，如「燧石启动器」）。</summary>
+    public string AppName { get; init; } = "燧石启动器";
 }

@@ -18,6 +18,22 @@
         <Button.Content><controls:PngIcon Token="close" IconSize="12"/></Button.Content>
       </Button>
       <StackPanel Margin="12,10,8,10">
+        <!-- 仅「安卓布局」(UiStyle=android) 显示通知头部：应用图标 + 应用名 + 时间戳；其它布局隐藏，外观与现状一致 -->
+        <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,0,0,5" IsVisible="{Binding IsAndroid}">
+          <!-- 应用图标：品牌色圆角方块 + 首字母（零二进制依赖，两端通用）-->
+          <Border Grid.Column="0" Width="20" Height="20" CornerRadius="5"
+                  Background="{DynamicResource AccentBrush}">
+            <TextBlock Text="C" Foreground="White" FontWeight="Bold" FontSize="12"
+                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
+          </Border>
+          <TextBlock Grid.Column="1" Text="{Binding Options.AppName}" Margin="7,0,0,0"
+                     VerticalAlignment="Center" FontSize="11" FontWeight="SemiBold"
+                     Foreground="{DynamicResource SecondaryForeground}"
+                     TextTrimming="CharacterEllipsis"/>
+          <TextBlock Grid.Column="2" Text="{Binding TimeText}" Margin="8,0,0,0"
+                     VerticalAlignment="Center" FontSize="10"
+                     Foreground="{DynamicResource SecondaryForeground}"/>
+        </Grid>
         <TextBlock Text="{Binding Options.Title}" FontSize="13" FontWeight="Bold"
                    Foreground="{DynamicResource PrimaryForeground}"/>
         <TextBlock Text="{Binding Options.Message}" FontSize="12"
